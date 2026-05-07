@@ -9,9 +9,13 @@ elasticsearch
 pymysql
 sqlalchemy
 
+# 암호화
+argon2-cffi
+python-dotenv
+
 # 크롤링
-#beautifulsoup4
-#selenium
+beautifulsoup4
+selenium
 #playwright
 #webdriver-manager
 #feedparser

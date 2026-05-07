@@ -1,0 +1,11 @@
+# 암호화 및 API KEY
+.env
+
+# 기타 바이트
+__pycache__/
+*.pyc
+
+# 대용량 데이터
+archives/
+csv_datas/
+*.log
