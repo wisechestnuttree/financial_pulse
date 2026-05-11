@@ -17,10 +17,10 @@ def verify_api_key(x_api_key: str = Header(..., alias="X-API-Key")):
             ...
 
     요청 헤더:
-        X-API-Key: fp-admin-secret-key-2026
+        X-API-Key: fp-admin-secret-key-2000
     """
     if x_api_key != ADMIN_API_KEY:
-        logger.warning("API Key 인증 실패", extra={"provided_key": x_api_key})
+        logger.warning("API Key 인증 실패")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="유효하지 않은 API Key입니다."
