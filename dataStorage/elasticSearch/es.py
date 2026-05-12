@@ -1,6 +1,6 @@
 from elasticsearch import Elasticsearch
 
-ES_ADDRESS = 'http://100.88.143.23:5601'    # ES 서버 주소
+ES_ADDRESS = 'http://100.88.143.23:9200'    # ES 서버 주소
 # http://100.88.143.23:5601/app/home#/
 
 LOG_INDICES = [ # 각 주제(crawl, ml, system, user)별로 로그를 분리

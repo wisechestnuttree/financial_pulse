@@ -36,3 +36,49 @@
 * 추후 개발
 기사 요약 -by 서율
 '''
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
+from starlette.middleware.sessions import SessionMiddleware
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = FastAPI()
+
+# ================================================================
+# 세션 미들웨어 등록
+# secret_key : 세션 쿠키 서명에 사용 — 반드시 .env에서 관리
+# max_age    : 세션 유지 시간 (초 단위, 3600 = 1시간)
+# https_only : 운영 환경에서는 반드시 True (HTTPS 전용)
+# ================================================================
+app.add_middleware(
+    SessionMiddleware,
+    secret_key = os.getenv("SESSION_SECRET_KEY"),
+    max_age    = 3600,
+    https_only = False,     # TODO: 운영 배포 시 True 로 변경
+)
+
+
+# ================================================================
+# 공통 에러 핸들러
+# ================================================================
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": exc.detail,
+            "data"   : None
+        }
+    )
+
+
+# ================================================================
+# 라우터 등록
+# ================================================================
+from router.membershipRouter import router as membershipRouter
+
+app.include_router(membershipRouter)
