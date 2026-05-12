@@ -49,7 +49,6 @@ class FindPwRequest(BaseModel):
 
 
 class ChangePwRequest(BaseModel):
-    email       : EmailStr
     current_pw  : str
     new_pw      : str
     new_pw_check: str

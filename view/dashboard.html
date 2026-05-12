@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>메인 대시보드 — Financial Pulse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="css/common.css">
+</head>
+<body>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+
+<div class="app-shell">
+  <aside class="sidebar" id="appSidebar"></aside>
+  <main class="content">
+    <div class="panel topbar">
+      <div>
+        <div class="search-wrap">
+          <i class="fas fa-magnifying-glass search-icon"></i>
+          <input id="searchInput" class="search-input" placeholder="키워드 검색 후 엔터 (예: 반도체, AI)">
+          <button id="searchBtn" class="search-btn">검색</button>
+        </div>
+        <div class="search-tags" id="searchTags">
+          <button class="search-tag">테슬라</button>
+          <button class="search-tag">금리</button>
+          <button class="search-tag">반도체</button>
+          <button class="search-tag">AI</button>
+        </div>
+      </div>
+      <div class="sw-group" id="countrySwitch">
+        <button class="sw-btn active" data-country="kr">국내</button>
+        <button class="sw-btn" data-country="us">해외</button>
+      </div>
+      <div class="sw-group">
+        <button class="sw-btn active" data-view="single">단일 보기</button>
+        <button class="sw-btn" data-view="split">분할 보기</button>
+      </div>
+    </div>
+
+    <!-- proto_v13의 #mainPageView 구조 -->
+    <div id="mainPageView">
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="panel" id="hotIssuePanelWrapper">
+        <div class="ph" style="padding:22px 24px 0;">
+          <div>
+            <div class="pt"><i class="fas fa-fire" style="color:var(--teal);margin-right:8px;"></i>오늘의 핫이슈</div>
+            <div class="pd">키워드별 기사 건수 비교</div>
+          </div>
+          <div class="fp-badge" id="currentCountryBadge" style="font-size:11px;">🇰🇷 한국</div>
+        </div>
+        <div id="hotIssueGrid"></div>
+      </div>
+      <div id="dynamicContent"></div>
+      <div id="splitView" style="display:none;"></div>
+    </div>
+  </main>
+</div>
+
+<!-- 성향 분석 오버레이 -->
+<div id="analysisOverlay">
+  <div id="analysisBox">
+    <button class="ao-close" id="aoClose"><i class="fas fa-times"></i></button>
+    <div class="ao-nav">
+      <button class="ao-back" id="aoBack"><i class="fas fa-arrow-left"></i> 대시보드</button>
+      <div class="ao-brand">Financial <span>Pulse</span></div>
+    </div>
+    <div id="aoContent"></div>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script>
+// 전역 변수
+window.curCountry = 'kr';
+window.curView = 'single';
+
+// ========== 메트릭 카드 (4종) 업데이트 (summaryCrid) ==========
+function updateMetricCards(sectors, lbl) {
+  const {pos, neu, neg} = getSentiRatios(sectors);// 호출
+  const top = sectors.reduce((a,b) => a.articles.length > b.articles.length ? a : b);
+  const hot = sectors.reduce((a,b) => (a.today - a.normal) > (b.today - b.normal) ? a : b);
+  const risk = sectors.filter(s => s.articles.some(a => a.tag === '부정')).reduce((a,b) => (a.today - a.normal) > (b.today - b.normal) ? a : b);
+  const riskNegRatio = Math.round((risk.articles.filter(a => a.tag === '부정').length / risk.articles.length) * 100);
+  
+  document.getElementById('summaryGrid').innerHTML = `
+    <div class="panel metric-card c-teal">
+      <div class="mc-label">오늘 전체 분위기 (${lbl})</div>
+      <div class="mc-value" style="color:var(--teal);">긍정 ${Math.round(pos)}%</div>
+      <div class="mc-sub">중립 ${Math.round(neu)}% · 부정 ${Math.round(neg)}%</div>
+    </div>
+    <div class="panel metric-card c-pos">
+      <div class="mc-label">노출도 1위 키워드</div>
+      <div class="mc-value" style="color:var(--pos);">${top.name}</div>
+      <div class="mc-sub">기사 ${top.articles.length}건</div>
+    </div>
+    <div class="panel metric-card c-gold">
+      <div class="mc-label">긍정 급등 1위 키워드</div>
+      <div class="mc-value" style="color:var(--gold);">${hot.name}</div>
+      <div class="mc-sub">+${hot.today - hot.normal}%p</div>
+    </div>
+    <div class="panel metric-card c-neg">
+      <div class="mc-label">부정 급등 1위 키워드</div>
+      <div class="mc-value" style="color:var(--neg);">${risk.name}</div>
+      <div class="mc-sub">부정 ${riskNegRatio}%</div>
+    </div>
+  `;
+}
+
+// ========== 단일 보기 렌더링 ==========
+function renderSingleView() {
+  const sectors = curCountry === 'kr' ? krSectors : usSectors;
+  const lbl = curCountry === 'kr' ? '국내' : '해외';
+  
+  updateMetricCards(sectors, lbl);
+  document.getElementById('currentCountryBadge').innerText = lbl;
+  renderHotIssueGrid('hotIssueGrid', sectors);
+  
+  // dynamicContent 영역 채우기 (proto_v13 스타일)
+  document.getElementById('dynamicContent').innerHTML = `
+    <div class="two-col">
+      <div class="col">
+        <div class="panel trend-panel" style="padding:22px;">
+          <div class="ph"><div><div class="pt">급등 기사 성향 분석</div><div class="pd">클릭 시 기사 보기</div></div></div>
+          <div class="trend-list" id="trendGrid"></div>
+        </div>
+      </div>
+      <div class="col right-col">
+        <div class="panel sentiment-panel" style="padding:22px;">
+          <div class="ph"><div class="pt">시장 전체 성향 비율</div></div>
+          <div id="sentimentDonut"></div>
+        </div>
+        <div class="panel" style="padding:22px;">
+          <div class="ph"><div class="pt">섹터별 긍/부정 비율</div></div>
+          <div class="stack-list" id="sectorStack"></div>
+        </div>
+      </div>
+    </div>
+    <div class="two-col">
+      <div class="col">
+        <div class="panel" style="padding:22px;">
+          <div class="ph"><div class="pt">주요 경제 지표</div><div class="pd"><a id="ecoTitle" href="#" target="_blank">상세보기 ↗</a></div></div>
+          <div id="ecoIndicators" class="indicators-grid"></div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="panel" style="padding:22px;">
+          <div class="ph"><div class="pt">경제 주요 일정</div><div class="pd"><a id="ecoCalLink" href="#" target="_blank">상세보기 ↗</a></div></div>
+          <div id="ecoCalendar" class="sch-list"></div>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  // core.js에 정의된 렌더 함수들 호출
+  renderTrendAnalysis('trendGrid', sectors);
+  renderMarketSentiment('sentimentDonut', sectors);
+  renderSectorStack('sectorStack', sectors);
+  renderEcoIndicators('ecoIndicators', curCountry);
+  renderEcoCalendar('ecoCalendar', curCountry);
+  
+  // 이벤트 바인딩 (경제 지표 상세보기)
+  const ecoTitle = document.getElementById('ecoTitle');
+  if(ecoTitle) {
+    ecoTitle.onclick = () => {
+      const url = curCountry === 'kr' ? 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp' : 'https://www.tradingview.com/markets/usa/';
+      window.open(url, '_blank');
+    };
+  }
+  const ecoCalLink = document.getElementById('ecoCalLink');
+  if(ecoCalLink) {
+    ecoCalLink.href = curCountry === 'kr' ? 'https://datacenter.hankyung.com/economic-calendar' : 'https://tradingeconomics.com/calendar';
+  }
+  
+  // 오늘의 키워드 업데이트
+  updateTodayKeywords(curCountry === 'kr' ? DOM_KW : GBL_KW);
+}
+
+// ========== 분할 보기 렌더링 ==========
+function renderSplitView() {
+  document.getElementById('dynamicContent').innerHTML = '';
+  document.getElementById('hotIssuePanelWrapper').style.display = 'none';
+  document.getElementById('splitView').innerHTML = `
+    <div class="split-layout">
+      <div class="split-col" id="splitLeft"></div>
+      <div class="split-col" id="splitRight"></div>
+    </div>
+  `;
+  
+  const idsKR = { hot:'hotKR', trend:'trendKR', donut:'donutKR', stack:'stackKR', eco:'ecoKR', cal:'calKR' };
+  const idsUS = { hot:'hotUS', trend:'trendUS', donut:'donutUS', stack:'stackUS', eco:'ecoUS', cal:'calUS' };
+  
+  document.getElementById('splitLeft').innerHTML = makeSplitCol(krSectors, '한국', idsKR, 'kr');
+  document.getElementById('splitRight').innerHTML = makeSplitCol(usSectors, '해외', idsUS, 'us');
+  
+  renderHotIssueGrid('hotKR', krSectors);
+  renderTrendAnalysis('trendKR', krSectors);
+  renderMarketSentiment('donutKR', krSectors);
+  renderSectorStack('stackKR', krSectors);
+  renderEcoIndicators('ecoKR', 'kr');
+  renderEcoCalendar('calKR', 'kr');
+  
+  renderHotIssueGrid('hotUS', usSectors);
+  renderTrendAnalysis('trendUS', usSectors);
+  renderMarketSentiment('donutUS', usSectors);
+  renderSectorStack('stackUS', usSectors);
+  renderEcoIndicators('ecoUS', 'us');
+  renderEcoCalendar('calUS', 'us');
+  
+  // 상세보기 링크 바인딩
+  const bindEcoTitle = (titleId, url) => {
+    const el = document.getElementById(titleId);
+    if(el) el.onclick = () => window.open(url, '_blank');
+  };
+  bindEcoTitle('ecoKRTitle', 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp');
+  bindEcoTitle('ecoUSTitle', 'https://finance.yahoo.com/markets/');
+}
+
+// ========== 뷰 전환 ==========
+function switchView(view) {
+  window.curView = view;
+  if(view === 'single') {
+    document.getElementById('splitView').style.display = 'none';
+    document.getElementById('dynamicContent').style.display = 'block';
+    document.getElementById('hotIssuePanelWrapper').style.display = 'block';
+    renderSingleView();
+  } else {
+    document.getElementById('splitView').style.display = 'block';
+    document.getElementById('dynamicContent').style.display = 'none';
+    document.getElementById('hotIssuePanelWrapper').style.display = 'none';
+    renderSplitView();
+  }
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+}
+
+// ========== 이벤트 바인딩 ==========
+function bindEvents() {
+  // 국가 전환
+  document.querySelectorAll('#countrySwitch .sw-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      curCountry = btn.dataset.country;
+      document.querySelectorAll('#countrySwitch .sw-btn').forEach(b => b.classList.toggle('active', b.dataset.country === curCountry));
+      if (curView === 'single') {
+        renderSingleView();               // 이미 단일 보기면 그냥 갱신
+      } else {
+        switchView('single');            // 분할 보기 → 단일 보기 전환 후 갱신
+      }
+    });
+  });
+  
+  // 뷰 전환
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.addEventListener('click', () => switchView(btn.dataset.view));
+  });
+  
+  // 검색
+  const searchBtn = document.getElementById('searchBtn');
+  const searchInput = document.getElementById('searchInput');
+  const doSearch = () => {
+    const kw = searchInput.value.trim();
+    if(kw && typeof openAnalysisOverlay === 'function') openAnalysisOverlay(kw);
+  };
+  searchBtn.addEventListener('click', doSearch);
+  searchInput.addEventListener('keypress', e => { if(e.key === 'Enter') doSearch(); });
+  
+  // 검색 태그
+  document.querySelectorAll('.search-tag').forEach(tag => {
+    tag.addEventListener('click', () => {
+      searchInput.value = tag.textContent;
+      doSearch();
+    });
+  });
+  
+  // 오버레이 닫기
+  const overlay = document.getElementById('analysisOverlay');
+  const closeBtn = document.getElementById('aoClose');
+  const backBtn = document.getElementById('aoBack');
+  const closeOverlay = () => overlay.classList.remove('show');
+  closeBtn?.addEventListener('click', closeOverlay);
+  backBtn?.addEventListener('click', closeOverlay);
+  overlay?.addEventListener('click', e => { if(e.target === overlay) closeOverlay(); });
+}
+
+// ========== 초기화 ==========
+window.addEventListener('DOMContentLoaded', async () => {
+  const session = await checkSession(false);
+  if(!session) return;
+  
+  // 사이드바 렌더링
+  const sidebar = document.getElementById('appSidebar');
+  if(sidebar && typeof renderSidebar === 'function') {
+    sidebar.innerHTML = renderSidebar('dashboard');
+  }
+  
+  // 공통 이벤트 바인딩 호출
+  if (typeof bindSidebarEvents === 'function') bindSidebarEvents();
+  
+  bindEvents();
+  switchView('single'); // 초기 단일 보기
+});
+</script>
+</body>
+</html>

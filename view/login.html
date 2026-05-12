@@ -1,10 +1,836 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <title>Title</title>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Financial Pulse — 로그인</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    /* === 기존 스타일 그대로 유지 === */
+    /* :root{
+      --navy:#0D1F3C; --navy-mid:#162C52; --navy-lt:#1E3A6E;
+      --teal:#00B5AD; --teal-s:rgba(0,181,173,.12); --teal-g:0 0 28px rgba(0,181,173,.22);
+      --gold:#C9A227; --gold-s:rgba(201,162,39,.12);
+      --bg:#F0F4FA; --bg2:#E8EEF8;
+      --panel:rgba(255,255,255,.92); --pbl:rgba(255,255,255,.7);
+      --text:#0D1F3C; --sub:#5A6E8C; --line:rgba(13,31,60,.1);
+      --pos:#2ECC71; --pos-s:rgba(46,204,113,.12);
+      --neg:#E74C3C; --neg-s:rgba(231,76,60,.12);
+      --neu:#8E9CC5;
+      --sh:0 16px 48px rgba(13,31,60,.12); --shl:0 24px 64px rgba(13,31,60,.18);
+      --rxl:28px; --rlg:22px; --rmd:16px; --rsm:10px;
+    } */
+    *{ box-sizing: border-box; margin: 0; padding: 0; }
+    body{
+      font-family: 'Sora','Noto Sans KR', system-ui, sans-serif;
+      color: var(--text);
+      background: radial-gradient(ellipse at 0% 0%, #e6f0ff 0%, #f0f4fa 40%, #edf3fe 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    .orb{ position: fixed; border-radius: 50%; filter: blur(36px); opacity: .4; pointer-events: none; z-index: 0; }
+    .o1{ width: 320px; height: 320px; top: -60px; left: -80px; background: rgba(0,181,173,.2); }
+    .o2{ width: 260px; height: 260px; right: 5%; top: 80px; background: rgba(201,162,39,.15); }
+    .o3{ width: 400px; height: 400px; right: -100px; bottom: 5%; background: rgba(13,31,60,.12); }
+
+    .hero-card{
+      background: var(--panel);
+      border: 1px solid var(--pbl);
+      backdrop-filter: blur(20px);
+      box-shadow: var(--sh);
+      border-radius: var(--rxl);
+      padding: 44px;
+      max-width: 680px;
+      width: 100%;
+      position: relative;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    .hero-card::before{
+      content: '';
+      position: absolute;
+      top: -80px;
+      right: -80px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(0,181,173,.18), transparent 65%);
+      pointer-events: none;
+    }
+    .fp-badge{
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 9px 16px; background: var(--teal-s); border: 1px solid rgba(0,181,173,.25);
+      border-radius: 999px; color: var(--teal); font-size: 12px; font-weight: 700;
+      letter-spacing: .5px;
+      animation: pulse-ring 2.5s infinite;
+    }
+    .fp-badge .dot{ width: 7px; height: 7px; background: var(--teal); border-radius: 50%; }
+    @keyframes pulse-ring{
+      0%{ box-shadow: 0 0 0 0 rgba(0,181,173,.4); }
+      70%{ box-shadow: 0 0 0 10px rgba(0,181,173,0); }
+      100%{ box-shadow: 0 0 0 0 rgba(0,181,173,0); }
+    }
+    .hero-title{
+      font-size: clamp(36px, 4.5vw, 62px); line-height: 1.05;
+      margin: 20px 0 12px; letter-spacing: -.04em; font-weight: 900;
+    }
+    .hero-title span{
+      background: linear-gradient(135deg, var(--teal), var(--gold));
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    .hero-sub{
+      font-size: 16px; color: var(--sub); line-height: 1.7; max-width: 560px;
+      margin-bottom: 28px;
+    }
+    .hero-stats{
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+      margin-bottom: 24px;
+    }
+    .hstat{
+      padding: 18px; background: rgba(255,255,255,.85); border-radius: var(--rlg);
+      border: 1px solid rgba(0,181,173,.1); box-shadow: var(--teal-g);
+      cursor: pointer; transition: .2s;
+    }
+    .hstat:hover{ transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,181,173,.18); }
+    .hstat .lbl{ font-size: 11px; color: var(--sub); font-weight: 700; letter-spacing: .5px; text-transform: uppercase; margin-bottom: 8px; }
+    .hstat .val{ font-size: 22px; font-weight: 900; letter-spacing: -.03em; color: var(--navy); }
+    .hstat .hint{ font-size: 12px; color: var(--teal); margin-top: 6px; font-weight: 600; }
+
+    .hero-viz{
+      display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px;
+      margin-top: 8px;
+    }
+    .hvbox{
+      background: linear-gradient(160deg, rgba(255,255,255,.9), rgba(240,248,255,.85));
+      border: 1px solid rgba(0,181,173,.12); border-radius: var(--rlg);
+      padding: 18px; box-shadow: 0 0 28px rgba(0,181,173,.12);
+    }
+    .ph{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; gap: 10px; }
+    .pt{ font-size: 15px; font-weight: 900; color: var(--navy); }
+    .sparkline{
+      height: 120px; display: flex; align-items: end; gap: 7px; padding-top: 16px;
+    }
+    .sparkline span{
+      flex: 1; border-radius: 12px 12px 6px 6px;
+      background: linear-gradient(180deg, rgba(0,181,173,.9), rgba(0,181,173,.2));
+      box-shadow: 0 0 16px rgba(0,181,173,.25);
+    }
+    .bubble-row{
+      display: flex; gap: 9px; flex-wrap: wrap; padding-top: 12px;
+    }
+    .bubble{
+      padding: 10px 14px; border-radius: 999px; background: rgba(13,31,60,.07);
+      border: 1px solid rgba(13,31,60,.1); font-weight: 700; font-size: 13px;
+    }
+    .bubble.big{ font-size: 20px; padding: 12px 18px; }
+    .bubble.hot{ background: var(--teal-s); border-color: rgba(0,181,173,.2); color: var(--teal); }
+    #previewImage{
+      width: 100%; height: auto; max-height: 200px; object-fit: contain;
+      display: none;
+    }
+    @keyframes fadeUp{
+      from{ opacity: 0; transform: translateY(16px); }
+      to{ opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 680px){
+      .hero-card{ padding: 28px; }
+      .hero-viz{ grid-template-columns: 1fr; }
+    }
+
+    .login-panel{background: var(--panel);backdrop-filter: blur(20px);padding:48px 42px;border-radius: var(--rxl);flex-direction:column;justify-content:center;box-shadow: var(--sh);}
+    .login-logo{display:flex;align-items:center;gap:10px;margin-bottom:26px;}
+    .login-logo img{height: 110px;object-fit:contain;}    
+    .login-hint{font-size:13px;color:var(--sub);margin-bottom:22px;line-height:1.75;}
+    .login-hint a{color:var(--teal);font-weight:700;}
+    .login-hint small{display:block;font-size:11.5px;color:#aaa;margin-top:2px;}
+
+    .l-alert{display:none;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;margin-bottom:14px;align-items:center;gap:8px;}
+    .l-alert.show{display:flex;animation:sldn .2s ease;}
+    .l-alert.err{background:rgba(231,76,60,.08);border:1.5px solid rgba(231,76,60,.2);color:var(--neg);}
+    @keyframes sldn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:none}}
+
+    .fg{margin-bottom:15px;}
+    .fg label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:6px;}
+    .fg input{width:100%;padding:12px 14px;border-radius:11px;border:1.5px solid var(--pbl);font-size:14px;font-family:inherit;outline:none;transition:.2s;background:#FAFBFD;color:var(--text);}
+    .fg input:focus{border-color:var(--teal);background:#fff;box-shadow:0 0 0 3px rgba(0,181,173,.1);}
+    .fg input::placeholder{color:#c0c8d8;}
+
+    .btn-row{display:grid;grid-template-columns:1fr auto;gap:9px;margin-top:18px;}
+    .btn-login{padding:13px;border-radius:11px;border:1.5px solid var(--pbl);background:var(--teal);color:#ffffff;font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:8px;transition:.2s;box-shadow:0 5px 16px rgba(0,181,173,.3);}
+    .btn-login:hover{transform:translateY(-1px);box-shadow:0 7px 20px rgba(0,181,173,.4);}
+    .btn-signup{padding:13px 16px;border-radius:11px;border:1.5px solid var(--pbl);border-color:var(--teal);background:#fff;color:var(--sub);font-weight:800;font-size:15px;cursor:pointer;font-family:inherit;transition:.2s;white-space:nowrap;}
+    .btn-signup:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-s);}
+    .fail-cnt{display:none;font-size:12px;color:var(--neg);font-weight:700;text-align:right;margin-top:6px;}
+    .fail-cnt.show{display:block;}
+    .find-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
+    .btn-find{padding:11px;border-radius:10px;border:1.5px solid var(--pbl);border-color:var(--neu);background:#fff;color:var(--sub);font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:7px;transition:.2s;}
+    .btn-find:hover{border-color:var(--teal);color:var(--teal);background:var(--teal-s);}
+
+    .mo{position:fixed;inset:0;background:rgba(13,31,60,.45);backdrop-filter:blur(6px);z-index:1000;display:none;align-items:center;justify-content:center;}
+    .mo.show{display:flex;}
+    .mb{background:#fff;border-radius:20px;padding:30px;width:430px;max-width:95vw;box-shadow:0 24px 60px rgba(13,31,60,.2);position:relative;animation:moin .22s ease;}
+    @keyframes moin{from{opacity:0;transform:translateY(10px)scale(.97)}to{opacity:1;transform:none}}
+    .mc{position:absolute;top:16px;right:16px;width:30px;height:30px;border-radius:50%;border:0;background:#f0f3f8;color:var(--sub);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.2s;}
+    .mc:hover{background:var(--teal-s);color:var(--teal);}
+    .mt{font-size:19px;font-weight:900;color:var(--navy);margin-bottom:20px;display:flex;align-items:center;gap:9px;}
+    .mt i{color:var(--teal);}
+    .ma{display:none;padding:11px 14px;border-radius:10px;font-size:13px;font-weight:700;margin-bottom:13px;align-items:center;gap:8px;}
+    .ma.show{display:flex;}
+    .ma.err{background:rgba(231,76,60,.08);border:1.5px solid rgba(231,76,60,.2);color:var(--neg);}
+    .ma.ok{background:rgba(46,204,113,.08);border:1.5px solid rgba(46,204,113,.2);color:#1a8a4a;}
+    .mfg{margin-bottom:15px;}
+    .mfg label{display:block;font-size:12px;font-weight:700;color:var(--sub);margin-bottom:5px;}
+    .mfg input{width:100%;padding:11px 13px;border-radius:10px;border:1.5px solid var(--pbl);font-size:14px;font-family:inherit;outline:none;transition:.2s;background:#FAFBFD;}
+    .mfg input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,181,173,.1);background:#fff;}
+    .mbtn{width:100%;padding:13px;border-radius:10px;border:0;background:var(--teal);color:#fff;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit;margin-top:4px;box-shadow:0 4px 14px rgba(0,181,173,.28);transition:.2s;}
+    .mbtn:disabled {opacity: 0.5;cursor: not-allowed;transform: none;}
+    .mbtn:hover{transform:translateY(-1px);}
+    .mlink{display:block;text-align:center;margin-top:12px;font-size:13px;color:var(--sub);}
+    .mlink a{color:var(--teal);font-weight:700;cursor:pointer;}
+    .erow{display:flex;gap:7px;}
+    .erow input{flex:1;}
+    .bdup{padding:11px 13px;border-radius:10px;border:1.5px solid var(--teal);background:var(--teal-s);color:var(--teal-d);font-weight:800;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:.2s;}
+    .bdup:hover{background:var(--teal);color:#fff;}
+    
+    /* 변경: 이메일 중복 메시지를 상단에 크게 표시 */
+    .dup-msg {
+      font-size: 18px;
+      font-weight: 800;
+      margin-bottom: 20px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid rgba(0,181,173,.2);
+      text-align: center;
+    }
+    .dup-msg.ok {
+      color: var(--pos);
+    }
+    .dup-msg.ng {
+      color: var(--neg);
+    }
+    /* 구분선 스타일 */
+    .signup-divider {
+      margin: 20px 0 18px;
+      border: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(13,31,60,.2), transparent);
+    }
+    /* 비밀번호 힌트 */
+    .pw-hint {
+      display: block;
+      font-size: 11px;
+      color: var(--sub);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+    .pw-match-msg {
+      font-size: 12px;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+    .pw-match-msg.ok { color: var(--pos); }
+    .pw-match-msg.ng { color: var(--neg); }
+
+    .login-page {
+      display: flex;
+      flex-direction: row;
+      gap: 28px;
+      align-items: center;
+      max-width: 1400px;
+      width: 100%;
+      padding: 0 20px;
+    }
+    .hero-card {
+      max-width: none;
+      flex: 1.2;
+    }
+    .login-panel {
+      flex: 0.8;
+    }
+    @media (max-width: 900px) {
+      .login-page {
+        flex-direction: column;
+      }
+      .hero-card, .login-panel {
+        flex: auto;
+      }
+    }
+  </style>
 </head>
 <body>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>  
+<div class="login-page">
 
+  <!-- 히어로 -->
+  <div class="hero-card">
+  <div>    
+    <h1 class="hero-title">시장의 맥박을<br><span>실시간으로</span></h1>
+    <p class="hero-sub">뉴스 성향 분석 · 키워드 트렌드 · 급등 이슈 탐지<br>한국 & 해외 시장을 한 화면에서 비교하세요.</p>
+    <div class="hero-stats">
+      <div class="hstat" onclick="showPreview('photo/키워드.png')">
+        <div class="lbl">키워드</div><div class="val">네트워크</div><div class="hint">실시간 분석</div>
+      </div>
+      <div class="hstat" onclick="showPreview('photo/급등기사.png')">
+        <div class="lbl">급등 탐지</div><div class="val">섹터 비교</div><div class="hint">이상 징후 포착</div>
+      </div>
+      <div class="hstat" onclick="showPreview('photo/성향분석.png')">
+        <div class="lbl">성향 분석</div><div class="val">긍/부정</div><div class="hint">종합 점수</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero-viz">
+    <div class="hvbox">
+      <div class="ph"><div class="pt">변화량 프리뷰</div></div>
+      <img id="previewImage" src="" alt="미리보기 이미지" style="display:none;">
+      <div class="sparkline" id="sparklineChart">
+        <span style="height:42%"></span>
+        <span style="height:62%"></span>
+        <span style="height:50%"></span>
+        <span style="height:78%"></span>
+        <span style="height:66%"></span>
+        <span style="height:92%"></span>
+        <span style="height:80%"></span>
+      </div>
+    </div>
+    <div class="hvbox">
+      <div class="ph"><div class="pt">오늘의 키워드</div></div>
+      <div class="bubble-row" id="todayKeywords">
+        <span class="bubble big hot">IT/기술</span>
+        <span class="bubble big">금융</span>
+        <span class="bubble">바이오</span>
+        <span class="bubble hot">인프라</span>
+        <span class="bubble">매크로</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- 로그인 폼 -->
+  <div class="login-panel">
+    <div class="login-logo">
+      <img src="photo/LOGO.jpg" alt="FP" onerror="this.style.display='none'"/>      
+    </div>
+    <div class="l-alert" id="lAlert"><i class="fas fa-circle-exclamation"></i><span id="lMsg"></span></div>
+    <div class="fg"><label>이메일 (아이디)</label><input type="email" id="loginEmail" placeholder="demo@finance.com"/></div>
+    <div class="fg"><label>비밀번호</label><input type="password" id="loginPassword" placeholder="••••••••"/></div>
+    <div class="btn-row">
+      <button class="btn-login" id="loginBtn"><i class="fas fa-arrow-right-to-bracket"></i> 로그인</button>
+      <button class="btn-signup" id="openSignup">회원가입</button>
+    </div>
+    <div class="fail-cnt" id="failCnt"></div>
+    <div class="find-row">
+      <button class="btn-find" id="openFindId"><i class="fas fa-magnifying-glass"></i> 아이디 찾기</button>
+      <button class="btn-find" id="openFindPw"><i class="fas fa-key"></i> 비밀번호 찾기</button>
+    </div>
+  </div>
+</div>
+
+<!-- 아이디 찾기 -->
+<div class="mo" id="findIdModal">
+  <div class="mb">
+    <button class="mc" id="closeFindId"><i class="fas fa-xmark"></i></button>
+    <div class="mt"><i class="fas fa-magnifying-glass"></i> 아이디 찾기</div>
+    <div class="ma" id="findIdAlert"><i></i><span id="findIdMsg"></span></div>
+    <div class="mfg"><label>이름</label><input type="text" id="findIdName" placeholder="가입한 이름"/></div>
+    <div class="mfg"><label>휴대폰번호</label><input type="tel" id="findIdPhone" placeholder="01012345678"/></div>
+    <button class="mbtn" id="doFindId">아이디 찾기</button>
+  </div>
+</div>
+
+<!-- 비밀번호 찾기 -->
+<div class="mo" id="findPwModal">
+  <div class="mb">
+    <button class="mc" id="closeFindPw"><i class="fas fa-xmark"></i></button>
+    <div class="mt"><i class="fas fa-key"></i> 임시 비밀번호 발급</div>
+    <div class="ma" id="findPwAlert"><i></i><span id="findPwMsg"></span></div>
+    <div class="mfg"><label>이메일 (아이디)</label><input type="email" id="findPwEmail" placeholder="가입한 이메일"/></div>
+    <div class="mfg"><label>이름</label><input type="text" id="findPwName" placeholder="가입한 이름"/></div>
+    <div class="mfg"><label>휴대폰번호</label><input type="tel" id="findPwPhone" placeholder="01012345678"/></div>
+    <button class="mbtn" id="doFindPw">임시 비밀번호 받기</button>
+  </div>
+</div>
+
+<!-- ========== 변경된 회원가입 모달 (이미지 스타일 적용) ========== -->
+<div class="mo" id="signupModal">
+  <div class="mb">
+    <button class="mc" id="closeSignup"><i class="fas fa-xmark"></i></button>
+    <div class="mt"><i class="fas fa-user-plus"></i> 회원가입</div>
+    <div class="ma" id="signupAlert"><i></i><span id="signupMsg"></span></div>
+
+    <!-- 변경: 중복확인 결과 메시지를 이메일 입력 위쪽에 배치 -->
+    <div class="dup-msg" id="dupMsg"></div>
+
+    <div class="mfg">
+      <label>이메일 (아이디)</label>
+      <div class="erow">
+        <input type="email" id="signupEmail" placeholder="예) 1325@gmail.com"/>
+        <button class="bdup" id="dupCheck">중복확인</button>
+      </div>
+    </div>
+
+    <!-- 구분선 (이미지 스타일) -->
+    <hr class="signup-divider">
+
+    <div class="mfg">
+      <label>비밀번호</label>
+      <input type="password" id="signupPw" placeholder="영문/숫자 6자 이상"/>
+      <span class="pw-hint">영문/숫자 6자 이상</span>
+    </div>
+    <div class="mfg">
+      <label>비밀번호 확인</label>
+      <input type="password" id="signupPwC" placeholder="다시 입력"/>
+      <div class="pw-match-msg" id="pwMatchMsg"></div>
+    </div>
+    <div class="mfg">
+      <label>이름</label>
+      <input type="text" id="signupName" placeholder="홍길동"/>
+    </div>
+    <div class="mfg">
+      <label>휴대폰번호</label>
+      <input type="tel" id="signupPhone" placeholder="01012345678"/>
+    </div>
+    <button class="mbtn" id="doSignup">가입하기</button>
+    <div class="mlink">이미 계정이 있으신가요? <a id="goLogin">로그인</a></div>
+  </div>
+</div>
+
+<!-- 가입 완료 -->
+<div class="mo" id="doneModal">
+  <div class="mb" style="text-align:center;padding:40px 30px;">
+    <div style="width:60px;height:60px;background:rgba(0,181,173,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;">
+      <i class="fas fa-circle-check" style="font-size:26px;color:var(--teal);"></i>
+    </div>
+    <div style="font-size:20px;font-weight:900;color:var(--navy);margin-bottom:7px;">가입이 완료됐어요!</div>
+    <div style="font-size:14px;color:var(--sub);margin-bottom:26px;">지금 바로 로그인하시겠습니까?</div>
+    <div style="display:flex;gap:9px;">
+      <button class="btn-find" style="flex:1;" id="laterBtn">나중에</button>
+      <button class="btn-login" style="flex:2;" id="goLoginBtn"><i class="fas fa-arrow-right-to-bracket"></i> 로그인하기</button>
+    </div>
+  </div>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/api.js"></script> 
+<script>
+
+function showPreview(imgSrc) {
+    const preview = document.getElementById('previewImage');
+    const spark = document.getElementById('sparklineChart');
+    if (preview && spark) {
+        preview.src = imgSrc;
+        preview.style.display = 'block';
+        spark.style.display = 'none';
+    }
+}
+
+var PREV_DATA = {
+  keyword: {
+    left: {
+      label: '변화량 프리뷰',
+      type: 'bars',
+      data: [30,45,38,62,52,72,58,82,68,90]
+    },
+    right: {
+      label: '오늘의 키워드',
+      type: 'chips',
+      data: ['삼성전자','네이버','이재용','반도체','서울'],
+      hl: 0
+    }
+  },
+  spike: {
+    left: {
+      label: '섹터별 긍정률',
+      type: 'sectors',
+      data: [
+        {name:'반도체', pct:72, type:'pos'},
+        {name:'2차전지', pct:41, type:'neg'},
+        {name:'AI/로봇', pct:83, type:'pos'},
+        {name:'자동차', pct:52, type:'pos'},
+      ]
+    },
+    right: {
+      label: '오늘의 키워드',
+      type: 'chips',
+      data: ['삼성전자','네이버','이재용','반도체','서울'],
+      hl: 0
+    }
+  },
+  senti: {
+    left: {
+      label: '성향 분포',
+      type: 'donut',
+      data: {pos:62, neg:18, neu:20}
+    },
+    right: {
+      label: '오늘의 키워드',
+      type: 'chips',
+      data: ['삼성전자','네이버','이재용','반도체','서울'],
+      hl: 0
+    }
+  }
+};
+
+function renderBars(el, data) {
+  el.innerHTML = '<div class="bars"></div>';
+  var wrap = el.querySelector('.bars');
+  data.forEach(function(h) {
+    var b = document.createElement('div');
+    b.className = 'bar';
+    b.style.height = '0';
+    wrap.appendChild(b);
+    setTimeout(function(){ b.style.height = h + '%'; }, 80 + Math.random()*200);
+  });
+}
+
+function renderChips(el, data, hlIdx) {
+  el.innerHTML = '<div class="kw-chips">' +
+    data.map(function(kw, i) {
+      return '<span class="kw-chip'+(i===hlIdx?' hl':'')+'">'+kw+'</span>';
+    }).join('') + '</div>';
+}
+
+function renderSectors(el, data) {
+  el.innerHTML = '<div class="sector-bars">' +
+    data.map(function(s) {
+      return '<div class="sector-row">'
+        + '<span class="sr-name">'+s.name+'</span>'
+        + '<div class="sr-track"><div class="sr-fill sr-'+s.type+'" style="width:0"></div></div>'
+        + '</div>';
+    }).join('') + '</div>';
+  setTimeout(function() {
+    var fills = el.querySelectorAll('.sr-fill');
+    data.forEach(function(s, i) {
+      if(fills[i]) fills[i].style.width = s.pct + '%';
+    });
+  }, 80);
+}
+
+function renderDonut(el, data) {
+  var id = 'dc_'+Math.random().toString(36).slice(2);
+  el.innerHTML =
+    '<div class="donut-wrap">'
+    + '<canvas id="'+id+'" width="80" height="80"></canvas>'
+    + '<div class="donut-legend">'
+    + '<div class="dl-row"><span class="dl-dot" style="background:#2ECC71"></span>긍정 '+data.pos+'%</div>'
+    + '<div class="dl-row"><span class="dl-dot" style="background:#E74C3C"></span>부정 '+data.neg+'%</div>'
+    + '<div class="dl-row"><span class="dl-dot" style="background:#8E9CC5"></span>중립 '+data.neu+'%</div>'
+    + '</div></div>';
+  setTimeout(function() {
+    var canvas = document.getElementById(id);
+    if(!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var cx=40, cy=40, r=34, lineW=10;
+    var segs = [
+      {val:data.pos/100, color:'#2ECC71'},
+      {val:data.neg/100, color:'#E74C3C'},
+      {val:data.neu/100, color:'#8E9CC5'}
+    ];
+    var start = -Math.PI/2;
+    segs.forEach(function(s) {
+      var end = start + s.val*2*Math.PI;
+      ctx.beginPath(); ctx.arc(cx,cy,r,start,end);
+      ctx.strokeStyle=s.color; ctx.lineWidth=lineW; ctx.stroke();
+      start = end;
+    });
+  }, 50);
+}
+
+function renderPanel(elId, cfg) {
+  var el = document.getElementById(elId);
+  if(!el) return;
+  el.innerHTML = '<div class="pp-lbl">'+cfg.label+'</div>';
+  var wrap = document.createElement('div');
+  el.appendChild(wrap);
+  if(cfg.type==='bars')    renderBars(wrap, cfg.data);
+  else if(cfg.type==='chips')   renderChips(wrap, cfg.data, cfg.hl||0);
+  else if(cfg.type==='sectors') renderSectors(wrap, cfg.data);
+  else if(cfg.type==='donut')   renderDonut(wrap, cfg.data);
+}
+
+function setMode(mode) {
+  document.querySelectorAll('.prev-item').forEach(function(el) {
+    el.classList.toggle('active', el.dataset.mode===mode);
+  });
+  var d = PREV_DATA[mode];
+  renderPanel('prevLeft', d.left);
+  // 오른쪽은 항상 '오늘의 키워드' 고정
+  renderPanel('prevRight', PREV_DATA.keyword.right);
+}
+
+document.querySelectorAll('.prev-item').forEach(function(el) {
+  el.addEventListener('click', function() { setMode(el.dataset.mode); });
+});
+setMode('keyword');
+
+function mAlert(alertId,msgId,msg,type){
+  var el=document.getElementById(alertId),ms=document.getElementById(msgId);
+  el.className='ma show '+(type==='ok'?'ok':'err');
+  el.children[0].className='fas fa-'+(type==='ok'?'circle-check':'circle-exclamation');
+  if(ms)ms.innerText=msg;
+  setTimeout(function(){el.className='ma';},3500);
+}
+function open(id){document.getElementById(id).classList.add('show');}
+function close(id){document.getElementById(id).classList.remove('show');}
+
+// 회원가입 버튼 활성화 (dupMsg 위치 변경됐지만 id로 찾기 때문에 정상 동작)
+function updateSignupButtonState() {
+  const email = document.getElementById('signupEmail').value.trim();
+  const pw = document.getElementById('signupPw').value;
+  const pwC = document.getElementById('signupPwC').value;
+  const name = document.getElementById('signupName').value.trim();
+  const phone = document.getElementById('signupPhone').value.trim();
+  const dupMsg = document.getElementById('dupMsg');
+  const isEmailOk = dupMsg && dupMsg.classList.contains('ok') && dupMsg.innerText.includes('사용 가능');
+
+  let isPwMatch = false;
+  const pwMatchMsg = document.getElementById('pwMatchMsg');
+  if(pw || pwC) {
+    if(pw === pwC && pw.length >= 6) {
+      isPwMatch = true;
+      if(pwMatchMsg) {
+        pwMatchMsg.className = 'pw-match-msg ok';
+        pwMatchMsg.innerText = '✓ 비밀번호가 일치합니다.';
+      }
+    } else {
+      isPwMatch = false;
+      if(pwMatchMsg) {
+        pwMatchMsg.className = 'pw-match-msg ng';
+        if(pw !== pwC) pwMatchMsg.innerText = '✗ 비밀번호가 일치하지 않습니다.';
+        else if(pw.length < 6) pwMatchMsg.innerText = '✗ 비밀번호는 6자 이상이어야 합니다.';
+        else pwMatchMsg.innerText = '✗ 비밀번호를 확인해주세요.';
+      }
+    }
+  } else {
+    if(pwMatchMsg) {
+      pwMatchMsg.className = 'pw-match-msg';
+      pwMatchMsg.innerText = '';
+    }
+  }
+  
+  const allFieldsFilled = email && pw && pwC && name && phone && pw.length >= 6 && isPwMatch;
+  const canSignup = allFieldsFilled && isEmailOk;
+  
+  const signupBtn = document.getElementById('doSignup');
+  if(signupBtn) signupBtn.disabled = !canSignup;
+}
+
+window.addEventListener('load', () => {
+    updateTodayKeywords(DOM_KW);
+});
+
+function initSignupValidation() {
+  const emailInput = document.getElementById('signupEmail');
+  const pwInput = document.getElementById('signupPw');
+  const pwCInput = document.getElementById('signupPwC');
+  const nameInput = document.getElementById('signupName');
+  const phoneInput = document.getElementById('signupPhone');
+  const dupCheckBtn = document.getElementById('dupCheck');
+  const dupMsgDiv = document.getElementById('dupMsg');
+  
+  const inputs = [emailInput, pwInput, pwCInput, nameInput, phoneInput];
+  inputs.forEach(input => {
+    if(input) input.addEventListener('input', updateSignupButtonState);
+  });
+  
+  if(emailInput) {
+    emailInput.addEventListener('input', function() {
+      if(dupMsgDiv) {
+        dupMsgDiv.className = 'dup-msg';
+        dupMsgDiv.innerText = '';
+      }
+      updateSignupButtonState();
+    });
+  }
+  
+  if(dupCheckBtn) {
+    dupCheckBtn.onclick = function() {
+      const email = emailInput.value.trim();
+      if(!email) {
+        if(dupMsgDiv) {
+          dupMsgDiv.className = 'dup-msg ng';
+          dupMsgDiv.innerText = '이메일을 입력하세요.';
+        }
+        updateSignupButtonState();
+        return;
+      }
+      if(window.findByEmail && findByEmail(email)) {
+        if(dupMsgDiv) {
+          dupMsgDiv.className = 'dup-msg ng';
+          dupMsgDiv.innerText = '이미 사용 중인 이메일입니다.';
+        }
+      } else {
+        if(dupMsgDiv) {
+          dupMsgDiv.className = 'dup-msg ok';
+          dupMsgDiv.innerText = '사용 가능한 이메일입니다.';
+        }
+      }
+      updateSignupButtonState();
+    };
+  }
+}
+
+window.onload = function () {
+
+  // ── 모달 열기/닫기 ──────────────────────────────────────────
+  document.getElementById('openFindId').onclick  = () => open('findIdModal');
+  document.getElementById('openFindPw').onclick  = () => open('findPwModal');
+  document.getElementById('openSignup').onclick  = () => { open('signupModal'); setTimeout(updateSignupButtonState, 50); };
+  document.getElementById('closeFindId').onclick = () => close('findIdModal');
+  document.getElementById('closeFindPw').onclick = () => close('findPwModal');
+  document.getElementById('closeSignup').onclick = () => close('signupModal');
+  document.getElementById('goLogin').onclick     = () => close('signupModal');
+  ['findIdModal','findPwModal','signupModal','doneModal'].forEach(id => {
+    document.getElementById(id)?.addEventListener('click', e => { if (e.target.id === id) close(id); });
+  });
+
+
+  // ================================================================
+  // [1] 로그인
+  // ================================================================
+  async function doLogin() {
+    const email = document.getElementById('loginEmail').value.trim();
+    const pw    = document.getElementById('loginPassword').value;
+    const al    = document.getElementById('lAlert');
+    const ms    = document.getElementById('lMsg');
+    const btn   = document.getElementById('loginBtn');
+    al.className = 'l-alert';
+
+    if (!email || !pw) {
+      al.className = 'l-alert show err';
+      ms.innerText = '이메일과 비밀번호를 입력하세요.';
+      return;
+    }
+
+    setBtnLoading(btn, true);
+    try {
+      await apiLogin(email, pw);
+      // 로그인 성공 → 대시보드로 이동
+      location.replace('dashboard.html');
+    } catch (e) {
+      al.className = 'l-alert show err';
+      ms.innerText = e.message;
+      // 잠금/남은 횟수 표시
+      const fc = document.getElementById('failCnt');
+      fc.className = 'fail-cnt show';
+      const m = e.message.match(/남은 시도: (\d+)회/);
+      fc.innerText = m
+        ? `로그인 실패 (남은 시도: ${m[1]}회)`
+        : e.message.includes('잠겼습니다') ? e.message : '';
+    } finally {
+      setBtnLoading(btn, false, '로그인');
+    }
+  }
+
+  document.getElementById('loginBtn').onclick                    = doLogin;
+  document.getElementById('loginPassword').onkeydown = e => { if (e.key === 'Enter') doLogin(); };
+
+
+  // ================================================================
+  // [4] 아이디 찾기
+  // ================================================================
+  document.getElementById('doFindId').onclick = async () => {
+    const name  = document.getElementById('findIdName').value.trim();
+    const phone = document.getElementById('findIdPhone').value.trim();
+    if (!name || !phone) {
+      mAlert('findIdAlert', 'findIdMsg', '필수 입력 사항을 입력해 주세요.', 'err');
+      return;
+    }
+    try {
+      const email = await apiFindId(name, phone);
+      mAlert('findIdAlert', 'findIdMsg', `가입한 아이디: ${email}`, 'ok');
+    } catch (e) {
+      mAlert('findIdAlert', 'findIdMsg', e.message, 'err');
+    }
+  };
+
+
+  // ================================================================
+  // [5] 비밀번호 찾기
+  // ================================================================
+  document.getElementById('doFindPw').onclick = async () => {
+    const email = document.getElementById('findPwEmail').value.trim();
+    if (!email) {
+      mAlert('findPwAlert', 'findPwMsg', '이메일을 입력해 주세요.', 'err');
+      return;
+    }
+    try {
+      await apiFindPw(email);
+      mAlert('findPwAlert', 'findPwMsg', '임시 비밀번호가 발급되었습니다. 이메일을 확인해 주세요.', 'ok');
+    } catch (e) {
+      mAlert('findPwAlert', 'findPwMsg', e.message, 'err');
+    }
+  };
+
+
+  // ================================================================
+  // [3] 회원가입
+  // ================================================================
+  let emailOk = false;
+
+  document.getElementById('dupCheck').onclick = async () => {
+    const email = document.getElementById('signupEmail').value.trim();
+    const dm    = document.getElementById('dupMsg');
+    if (!email) {
+      dm.className = 'dup-msg ng';
+      dm.innerText = '이메일을 입력하세요.';
+      return;
+    }
+    const result = await apiCheckEmail(email);
+    emailOk        = result.available;
+    dm.className   = `dup-msg ${result.available ? 'ok' : 'ng'}`;
+    dm.innerText   = result.message;
+    updateSignupButtonState();
+  };
+
+  document.getElementById('doSignup').onclick = async () => {
+    const email = document.getElementById('signupEmail').value.trim();
+    const pw    = document.getElementById('signupPw').value;
+    const pwc   = document.getElementById('signupPwC').value;
+    const name  = document.getElementById('signupName').value.trim();
+    const phone = document.getElementById('signupPhone').value.trim();
+    const btn   = document.getElementById('doSignup');
+
+    if (!email || !pw || !pwc || !name || !phone) {
+      mAlert('signupAlert', 'signupMsg', '모든 항목을 입력하세요.', 'err');
+      return;
+    }
+    var dupMsgDiv = document.getElementById('dupMsg');
+    var isEmailVerified = dupMsgDiv && dupMsgDiv.classList.contains('ok') && dupMsgDiv.innerText.includes('사용 가능');
+    if(!isEmailVerified) {
+        mAlert('signupAlert','signupMsg','이메일 중복 확인을 해주세요.','err');
+    return;
+  }
+    if (pw !== pwc) {
+      mAlert('signupAlert', 'signupMsg', '비밀번호가 일치하지 않습니다.', 'err');
+      return;
+    }
+
+    setBtnLoading(btn, true);
+    try {
+      await apiSignup(email, pw, name, phone);
+      close('signupModal');
+      open('doneModal');
+    } catch (e) {
+      mAlert('signupAlert', 'signupMsg', e.message, 'err');
+    } finally {
+      setBtnLoading(btn, false, '가입하기');
+    }
+  };
+
+
+  // ── 가입 완료 모달 버튼 ─────────────────────────────────────
+  document.getElementById('laterBtn').onclick   = () => close('doneModal');
+  document.getElementById('goLoginBtn').onclick = () => {
+    close('doneModal');
+    document.getElementById('loginEmail').value = document.getElementById('signupEmail').value;
+    document.getElementById('loginPassword').focus();
+  };
+
+  initSignupValidation();
+  updateSignupButtonState();
+};</script>
 </body>
 </html>

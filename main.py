@@ -43,6 +43,9 @@ from starlette.middleware.sessions import SessionMiddleware
 import os
 from dotenv import load_dotenv
 
+from router.memberRouter import router as memberRouter
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 load_dotenv()
 
 app = FastAPI()
@@ -75,10 +78,20 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
         }
     )
 
+# ── HTML 라우트 (마운트보다 먼저 등록) ────────────────
+@app.get("/")
+def root():
+    return FileResponse("view/index.html")
+
+@app.get("/{filename}.html")
+def serve_html(filename: str):
+    return FileResponse(f"view/{filename}.html")
+
+# ── 정적 파일 마운트 (맨 마지막) ──────────────────────
+# /css/..., /js/... 경로 그대로 사용 가능
+app.mount("/", StaticFiles(directory="view"), name="static")
 
 # ================================================================
 # 라우터 등록
 # ================================================================
-from router.memberRouter import router as memberRouter
-
 app.include_router(memberRouter)

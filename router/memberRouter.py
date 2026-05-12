@@ -12,6 +12,7 @@ from model.memberModel import (
     SignupRequest, LoginRequest, FindIdRequest, FindPwRequest,
     ChangePwRequest, VerifyPwRequest, UpdateInfoRequest, DeleteUserRequest
 )
+import traceback
 
 logger = getLogger("user")
 
@@ -186,6 +187,40 @@ def signUp(req: SignupRequest):
 
 
 # ================================================================
+# [3-2] 이메일 중복 확인
+# ================================================================
+from pydantic import EmailStr as _EmailStr
+from pydantic import BaseModel as _BaseModel
+
+class CheckEmailRequest(_BaseModel):
+    email: _EmailStr
+
+@router.post("/check-email")
+def checkEmail(req: CheckEmailRequest):
+    """
+    성공 →  { success: True,  message: "사용 가능한 이메일입니다.", data: null }
+    실패 →  { success: False, message: "이미 사용 중인 이메일입니다.", data: null }
+    """
+    conn = getConn()
+    try:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT u_id FROM user WHERE email = %s", (req.email,))
+            if cursor.fetchone():
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="이미 사용 중인 이메일입니다."
+                )
+        return ok("사용 가능한 이메일입니다.")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("이메일 중복 확인 오류", extra={"error": str(e)})
+        raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
+    finally:
+        conn.close()
+
+
+# ================================================================
 # [4] 아이디 찾기
 # ================================================================
 @router.post("/find-id")
@@ -267,11 +302,16 @@ def findPw(req: FindPwRequest):
 # [5-2] 비밀번호 변경
 # ================================================================
 @router.put("/change-pw")
-def changePw(req: ChangePwRequest):
+def changePw(req: ChangePwRequest, request: Request):
     """
     성공 →  { success: True,  message: "비밀번호가 변경되었습니다.", data: null }
     실패 →  { success: False, message: "<사유>",                   data: null }
     """
+    email = request.session.get("email")
+    print(email)
+    if not email:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
+
     conn = getConn()
     try:
         with conn.cursor() as cursor:
@@ -317,6 +357,7 @@ def changePw(req: ChangePwRequest):
         raise
     except Exception as e:
         conn.rollback()
+        traceback.print_exc() #??????????????????
         logger.error("비밀번호 변경 중 오류", extra={"error": str(e)})
         raise HTTPException(status_code=500, detail="서버 오류가 발생했습니다.")
     finally:
