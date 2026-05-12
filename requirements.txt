@@ -19,9 +19,9 @@ python-dotenv
 # 크롤링
 beautifulsoup4
 selenium
+feedparser
+webdriver-manager
 #playwright
-#webdriver-manager
-#feedparser
 
 # 자연어 처리 및 전처리
 #python-dateutil
