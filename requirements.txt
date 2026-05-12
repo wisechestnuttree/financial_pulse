@@ -3,6 +3,8 @@ fastapi
 uvicorn
 pandas
 requests
+itsdangerous
+pydantic[email]
 
 # 저장소
 elasticsearch

@@ -1,6 +1,6 @@
 # 비밀번호 단방향 암호화 Argon2 , Pepper
 import os, hmac, hashlib
-from encBase import pepper
+from encryption.encBase import pepper
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
 # 상대 경로 지정

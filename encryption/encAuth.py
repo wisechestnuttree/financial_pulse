@@ -1,5 +1,5 @@
 from fastapi import Header, HTTPException, status
-from encBase import ADMIN_API_KEY
+from encryption.encBase import ADMIN_API_KEY
 from logs.logger import getLogger
 
 logger = getLogger("user")
