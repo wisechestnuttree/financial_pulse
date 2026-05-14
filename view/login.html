@@ -752,12 +752,18 @@ window.onload = function () {
   // ================================================================
   document.getElementById('doFindPw').onclick = async () => {
     const email = document.getElementById('findPwEmail').value.trim();
+    const name  = document.getElementById('findPwName').value.trim();   // ← 추가
+    const phone = document.getElementById('findPwPhone').value.trim();
     if (!email) {
       mAlert('findPwAlert', 'findPwMsg', '이메일을 입력해 주세요.', 'err');
       return;
     }
     try {
-      await apiFindPw(email);
+      if (!email || !name || !phone) {
+      mAlert('findPwAlert', 'findPwMsg', '모든 항목을 입력해 주세요.', 'err');
+      return;
+      }
+      await apiFindPw(email, name, phone);
       mAlert('findPwAlert', 'findPwMsg', '임시 비밀번호가 발급되었습니다. 이메일을 확인해 주세요.', 'ok');
     } catch (e) {
       mAlert('findPwAlert', 'findPwMsg', e.message, 'err');

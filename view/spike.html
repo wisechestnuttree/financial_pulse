@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>급등 기사 성향 분석 — Financial Pulse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="stylesheet" href="css/common.css">
+  <style>
+    /* proto_v13의 급등 페이지 전용 스타일은 common.css에 이미 포함되어 있으므로 추가할 필요 없음 */
+    /* 단, 분할 보기 시 그리드 간격 조정을 위한 스타일 (common.css에 없을 수 있음) */
+    .split-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+    }
+    @media (max-width: 1100px) {
+      .split-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+<div class="app-shell">
+  <div id="sidebarWrap"></div>
+  <main class="content" style="gap:0;">
+    <!-- 헤더 (proto_v13 스타일과 일치) -->
+    <div class="panel" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; padding:16px 22px; gap:12px; margin-top: 16px; margin-bottom:20px;">
+      <div>
+        <div style="font-size:18px; font-weight:900; color:var(--navy);"><i class="fas fa-fire-flame-curved" style="color:var(--teal); margin-right:8px;"></i>급등 기사 성향 분석</div>
+        <div style="font-size:12px; color:var(--sub); margin-top:3px;">섹터별 평소 대비 오늘 긍·부정률 변화</div>
+      </div>
+      <div style="display:flex; gap:8px; background:rgba(255,255,255,.8); padding:6px; border-radius:var(--rlg);">
+        <button id="hsBtnDom" class="hs-btn hs-active"><i class="fas fa-chart-simple" style="margin-right:6px;"></i>국내</button>
+        <button id="hsBtnOvs" class="hs-btn"><i class="fas fa-globe-americas" style="margin-right:6px;"></i>해외</button>
+        <button id="hsBtnSplit" class="hs-btn"><i class="fas fa-columns" style="margin-right:6px;"></i>분할</button>
+      </div>
+    </div>
+
+    <!-- 동적 패널 영역 (proto_v13의 #hsPanelsWrap) -->
+    <div id="hsPanelsWrap" class="hs-panels-wrap">
+      <!-- proto_v13의 domPanel / ovsPanel 구조를 그대로 사용 (JS에서 필요) -->
+      <div id="domPanel" class="panel-card">
+        <div class="pc-header"><div class="pc-icon"><i class="fas fa-landmark"></i></div><div><div class="pc-title">🇰🇷 국내 급등 기사 성향</div></div></div>
+        <div class="pc-content">
+          <div class="senti-summary">
+            <div class="score-area">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div class="score-num-wrap"><span class="score-num" id="krScoreNum">72.4</span><span class="score-unit">/ 100</span></div>
+                <span class="kw-label-badge" id="krKwLabel"><i class="fas fa-chart-pie" style="margin-right:4px;"></i>종합</span>
+              </div>
+            </div>
+            <div class="senti-bars">
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-smile" style="color:var(--pos);margin-right:5px;"></i>긍정 비율</span><span id="krPosVal" style="color:var(--pos);font-weight:800;">62%</span></div><div class="bar-track"><div class="bar-fill fill-pos" id="krPosBar" data-w="62"></div></div></div>
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-frown" style="color:var(--neg);margin-right:5px;"></i>부정 비율</span><span id="krNegVal" style="color:var(--neg);font-weight:800;">18%</span></div><div class="bar-track"><div class="bar-fill fill-neg" id="krNegBar" data-w="18"></div></div></div>
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-meh" style="color:var(--neu);margin-right:5px;"></i>중립 비율</span><span id="krNeuVal" style="color:var(--neu);font-weight:800;">20%</span></div><div class="bar-track"><div class="bar-fill fill-neu" id="krNeuBar" data-w="20"></div></div></div>
+            </div>
+            <div class="kw-cloud" id="krKwCloud"></div>
+          </div>
+          <div class="sector-section">
+            <div class="sect-title"><i class="fas fa-chart-line"></i>📈 섹터별 긍·부정률 변화 (평소 → 오늘)</div>
+            <div class="sect-list" id="krSectorGrid"></div>
+          </div>
+          <div class="news-list">
+            <h4 id="krNewsTitle"><i class="fas fa-fire"></i>🔥 급등 핫토픽 기사 분석</h4>
+            <div id="krNewsList"></div>
+          </div>
+          <div class="subnote"><i class="fas fa-chart-simple" style="margin-right:5px;"></i>국내 급등 기사 성향지수 강세 / AI·반도체 테마 주도 (최근 24h +42%)</div>
+        </div>
+      </div>
+      <div id="ovsPanel" class="panel-card" style="display:none;">
+        <div class="pc-header"><div class="pc-icon" style="background:var(--gold-s);color:var(--gold);"><i class="fas fa-flag-usa"></i></div><div><div class="pc-title">🌎 해외 급등 기사 성향</div></div></div>
+        <div class="pc-content">
+          <div class="senti-summary">
+            <div class="score-area">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <div class="score-num-wrap"><span class="score-num" id="usScoreNum">48.6</span><span class="score-unit">/ 100</span></div>
+                <span class="kw-label-badge" id="usKwLabel"><i class="fas fa-chart-pie" style="margin-right:4px;"></i>종합</span>
+              </div>
+            </div>
+            <div class="senti-bars">
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-smile" style="color:var(--pos);margin-right:5px;"></i>긍정 비율</span><span id="usPosVal" style="color:var(--pos);font-weight:800;">40%</span></div><div class="bar-track"><div class="bar-fill fill-pos" id="usPosBar" data-w="40"></div></div></div>
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-frown" style="color:var(--neg);margin-right:5px;"></i>부정 비율</span><span id="usNegVal" style="color:var(--neg);font-weight:800;">35%</span></div><div class="bar-track"><div class="bar-fill fill-neg" id="usNegBar" data-w="35"></div></div></div>
+              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-meh" style="color:var(--neu);margin-right:5px;"></i>중립 비율</span><span id="usNeuVal" style="color:var(--neu);font-weight:800;">25%</span></div><div class="bar-track"><div class="bar-fill fill-neu" id="usNeuBar" data-w="25"></div></div></div>
+            </div>
+            <div class="kw-cloud" id="usKwCloud"></div>
+          </div>
+          <div class="sector-section">
+            <div class="sect-title"><i class="fas fa-chart-line"></i>📊 美 섹터별 긍·부정률 변화 (평소 → 오늘)</div>
+            <div class="sect-list" id="usSectorGrid"></div>
+          </div>
+          <div class="news-list">
+            <h4 id="usNewsTitle"><i class="fas fa-chart-line"></i>해외 급등 뉴스 성향</h4>
+            <div id="usNewsList"></div>
+          </div>
+          <div class="subnote">미국: AI 낙관론 vs 인플레이션 경계감 팽팽, 긍정·부정 격차 축소</div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/core.js"></script>
+<script src="js/api.js"></script>
+<script>
+// ================================================================
+// 캐시
+// ================================================================
+var spikeCache = { ko: null, en: null };
+
+// ================================================================
+// API 호출
+// ================================================================
+async function fetchSpike(lang) {
+  if (spikeCache[lang]) return spikeCache[lang];
+  try {
+    var res  = await fetch(BASE_URL + '/api/spike?lang=' + lang, { credentials: 'include' });
+    var json = await res.json();
+    if (!json.success) throw new Error(json.message);
+    spikeCache[lang] = json.data;
+    return json.data;
+  } catch(e) {
+    console.error('spike API 오류:', e);
+    return null;
+  }
+}
+
+// ================================================================
+// API 데이터 → 기존 렌더 함수 호환 형식 변환
+// ================================================================
+
+// sector_changes → krS/usS 형식 { name, usual, today }
+function toSectorStats(sectorChanges) {
+  return (sectorChanges || []).map(function(s) {
+    return {
+      name : s.sector,
+      usual: Math.round(s.week_avg ? s.week_avg.pos : 0),
+      today: Math.round(s.today ? s.today.pos : 0),
+    };
+  });
+}
+
+// sector_changes → NEWS DB 형식 { '전체': [...], '섹터명': [...] }
+function toNewsDb(sectorChanges) {
+  var db = { '전체': [] };
+  var iconMap  = { positive: 'pos', negative: 'neg', neutral: 'neu' };
+  (sectorChanges || []).forEach(function(s) {
+    var articles = (s.articles || []).map(function(a) {
+      return {
+        tag  : iconMap[a.tendency] || 'neu',
+        title: a.title  || '제목 없음',
+        meta : '성향 점수 ' + ((a.tend_score || 0) * 100).toFixed(0),
+        url  : a.url    || '#',
+      };
+    });
+    db[s.sector] = articles;
+    // 전체에 최대 1개씩 추가
+    if (articles.length) db['전체'].push(articles[0]);
+  });
+  return db;
+}
+
+// overall → { score, pos, neg, neu }
+function toOverallScore(overall) {
+  if (!overall) return { score: '0.0', pos: 0, neg: 0, neu: 0 };
+  return {
+    score: overall.pos.toFixed(1),
+    pos  : Math.round(overall.pos),
+    neg  : Math.round(overall.neg),
+    neu  : Math.round(overall.neu),
+  };
+}
+
+// sector_changes → 키워드 태그 클라우드 형식
+function toKwCloud(sectorChanges) {
+  var iconMap = {
+    '반도체':'fas fa-microchip','2차전지':'fas fa-car-battery','AI/로봇':'fas fa-robot',
+    '자동차':'fas fa-car','금융':'fas fa-building-columns','AI 반도체':'fas fa-microchip',
+    '빅테크':'fas fa-server','금리민감주':'fas fa-percent','전기차':'fas fa-bolt',
+    '방산/우주':'fas fa-rocket',
+  };
+  return (sectorChanges || []).map(function(s) {
+    return {
+      name : s.sector,
+      icon : iconMap[s.sector] || 'fas fa-tag',
+      pos  : Math.round(s.today ? s.today.pos : 0),
+      neg  : Math.round(s.today ? s.today.neg : 0),
+      neu  : Math.round(s.today ? s.today.neu : 0),
+      score: s.today ? s.today.pos.toFixed(1) : '0.0',
+    };
+  });
+}
+
+// ================================================================
+// 기존 렌더 함수 유지 — renderNews, renderSectorList
+// ================================================================
+function renderNews(listId, titleId, sector, db, defaultLabel) {
+  var list = document.getElementById(listId);
+  var titleEl = document.getElementById(titleId);
+  if (!list) return;
+  var items = db[sector] || db['전체'] || [];
+  var iconMap = { pos:'fas fa-face-smile', neg:'fas fa-face-frown', neu:'fas fa-face-meh' };
+  var clsMap  = { pos:'icon-pos', neg:'icon-neg', neu:'icon-neu' };
+  list.style.opacity = '0';
+  list.style.transition = 'opacity .2s';
+  setTimeout(function() {
+    if (!items.length) {
+      list.innerHTML = '<div style="color:var(--sub);padding:16px;">관련 기사가 없습니다.</div>';
+    } else {
+      list.innerHTML = items.map(function(n) {
+        return '<div class="news-item">'
+          + '<div class="ni-icon ' + (clsMap[n.tag] || 'icon-neu') + '"><i class="' + (iconMap[n.tag] || 'fas fa-face-meh') + '"></i></div>'
+          + '<div><a href="' + (n.url || '#') + '" target="_blank" rel="noopener" '
+          + 'style="display:block;font-weight:800;margin-bottom:5px;font-size:14px;color:var(--navy);'
+          + 'line-height:1.4;text-decoration:none;transition:color .15s;"'
+          + ' onmouseover="this.style.color=\'var(--teal)\'" onmouseout="this.style.color=\'var(--navy)\'">'
+          + n.title
+          + ' <i class="fas fa-arrow-up-right-from-square" style="font-size:10px;opacity:.45;margin-left:3px;"></i></a>'
+          + '<div class="ni-meta">' + n.meta + '</div></div></div>';
+      }).join('');
+    }
+    list.style.opacity = '1';
+  }, 150);
+  if (titleEl) {
+    titleEl.innerHTML = sector === '전체'
+      ? defaultLabel
+      : '<i class="fas fa-tag" style="color:var(--teal);margin-right:6px;"></i>' + sector + ' 급등 기사';
+  }
+}
+
+function renderSectorList(cid, sectors, newsListId, newsTitleId, db, defaultNewsLabel) {
+  var c = document.getElementById(cid);
+  if (!c) return;
+  c.innerHTML = '';
+  var selectedName = null;
+  renderNews(newsListId, newsTitleId, '전체', db, defaultNewsLabel);
+  sectors.forEach(function(s) {
+    var d = s.today - s.usual, isPos = d > 0, el = document.createElement('div');
+    el.className = 'sect-card';
+    el.style.cursor = 'pointer';
+    el.innerHTML = '<div class="sect-name"><strong>' + s.name + '</strong></div>'
+      + '<div class="sect-stats">'
+      + '<span class="stat-pill">📆 평소 ' + s.usual + '%</span>'
+      + '<span class="stat-pill">🔥 오늘 ' + s.today + '%</span>'
+      + '<span class="delta-pill ' + (isPos ? 'delta-pos' : 'delta-neg') + '">'
+      + '<i class="fas fa-arrow-' + (isPos ? 'up' : 'down') + '"></i>'
+      + (isPos ? '+' : '') + Math.abs(d) + '%p&nbsp;<strong>'
+      + (isPos ? '긍정 급등 ▲' : '부정 급등 ▼') + '</strong></span></div>';
+    el.addEventListener('click', function() {
+      if (selectedName === s.name) {
+        selectedName = null;
+        c.querySelectorAll('.sect-card').forEach(function(card) { card.style.background=''; card.style.borderColor=''; });
+        renderNews(newsListId, newsTitleId, '전체', db, defaultNewsLabel);
+      } else {
+        selectedName = s.name;
+        c.querySelectorAll('.sect-card').forEach(function(card) { card.style.background=''; card.style.borderColor=''; });
+        el.style.background = 'rgba(0,181,173,.08)';
+        el.style.borderColor = 'rgba(0,181,173,.35)';
+        renderNews(newsListId, newsTitleId, s.name, db, defaultNewsLabel);
+      }
+    });
+    c.appendChild(el);
+  });
+}
+
+// ================================================================
+// 기존 _updateScore 유지
+// ================================================================
+function _updateScore(ids, label, score, pos, neg, neu, name) {
+  var numEl=document.getElementById(ids.score), posVal=document.getElementById(ids.posVal),
+      negVal=document.getElementById(ids.negVal), neuVal=document.getElementById(ids.neuVal),
+      posBar=document.getElementById(ids.posBar), negBar=document.getElementById(ids.negBar),
+      neuBar=document.getElementById(ids.neuBar), kwLbl=document.getElementById(ids.label);
+  if(!numEl) return;
+  numEl.style.transition='opacity .15s'; numEl.style.opacity='0';
+  setTimeout(function(){ numEl.textContent=score; numEl.style.opacity='1'; },130);
+  posBar.style.width='0'; negBar.style.width='0'; neuBar.style.width='0';
+  posVal.textContent=pos+'%'; negVal.textContent=neg+'%'; neuVal.textContent=neu+'%';
+  setTimeout(function(){ posBar.style.width=pos+'%'; negBar.style.width=neg+'%'; neuBar.style.width=neu+'%'; },30);
+  if(kwLbl){
+    var allIcons={
+      '종합':'fas fa-chart-pie','반도체':'fas fa-microchip','2차전지':'fas fa-car-battery',
+      'AI/로봇':'fas fa-robot','자동차':'fas fa-car','금융/밸류업':'fas fa-building-columns',
+      'AI 반도체':'fas fa-microchip','빅테크':'fas fa-server','금리민감주':'fas fa-percent',
+      '전기차':'fas fa-bolt','방산/우주':'fas fa-rocket'
+    };
+    var icon=allIcons[name]||'fas fa-tag';
+    kwLbl.innerHTML='<i class="'+icon+'" style="margin-right:4px;"></i>'+label;
+  }
+}
+
+// ================================================================
+// 패널 렌더 — API 데이터 주입
+// ================================================================
+async function renderPanel(lang, prefix, newsLabel) {
+  var d = await fetchSpike(lang);
+
+  // 로딩 실패 시 안내
+  if (!d) {
+    document.getElementById(prefix + 'SectorGrid').innerHTML =
+      '<div style="color:var(--neg);padding:20px;">데이터를 불러오지 못했습니다.</div>';
+    return;
+  }
+
+  var sectors  = toSectorStats(d.sector_changes);
+  var newsDb   = toNewsDb(d.sector_changes);
+  var kwCloud  = toKwCloud(d.sector_changes);
+  var overall  = toOverallScore(d.overall);
+
+  var IDS = {
+    score: prefix+'ScoreNum', posVal: prefix+'PosVal', negVal: prefix+'NegVal',
+    neuVal: prefix+'NeuVal',  posBar: prefix+'PosBar', negBar: prefix+'NegBar',
+    neuBar: prefix+'NeuBar',  label:  prefix+'KwLabel',
+  };
+  var DEF = { score: overall.score, pos: overall.pos, neg: overall.neg, neu: overall.neu };
+
+  // 섹터 카드 + 기사 렌더
+  renderSectorList(prefix+'SectorGrid', sectors, prefix+'NewsList', prefix+'NewsTitle', newsDb, newsLabel);
+
+  // 키워드 태그 클라우드
+  var kwContainer = document.getElementById(prefix+'KwCloud');
+  if (kwContainer) {
+    kwContainer.innerHTML = kwCloud.map(function(s, idx) {
+      return '<span class="kw-tag" data-code="'+prefix+'" data-idx="'+idx
+        +'" data-score="'+s.score+'" data-pos="'+s.pos+'" data-neg="'+s.neg+'" data-neu="'+s.neu
+        +'"><i class="'+s.icon+'"></i> '+s.name+'</span>';
+    }).join('');
+
+    // 태그 hover 이벤트
+    kwContainer.querySelectorAll('.kw-tag').forEach(function(tag) {
+      tag.addEventListener('mouseenter', function() {
+        kwContainer.querySelectorAll('.kw-tag').forEach(function(t){ t.classList.remove('kw-selected'); });
+        tag.classList.add('kw-selected');
+        _updateScore(IDS, tag.innerText.trim(), tag.dataset.score,
+          parseInt(tag.dataset.pos), parseInt(tag.dataset.neg), parseInt(tag.dataset.neu), tag.innerText.trim());
+      });
+      tag.addEventListener('mouseleave', function() {
+        tag.classList.remove('kw-selected');
+        _updateScore(IDS, '종합', DEF.score, DEF.pos, DEF.neg, DEF.neu, '종합');
+      });
+    });
+  }
+
+  // 종합 점수 초기 렌더
+  setTimeout(function() {
+    _updateScore(IDS, '종합', overall.score, overall.pos, overall.neg, overall.neu, '종합');
+  }, 100);
+}
+
+// ================================================================
+// 뷰 전환 (국내/해외/분할)
+// ================================================================
+var dP  = document.getElementById('domPanel');
+var oP  = document.getElementById('ovsPanel');
+var wp  = document.getElementById('hsPanelsWrap');
+var bD  = document.getElementById('hsBtnDom');
+var bO  = document.getElementById('hsBtnOvs');
+var bSp = document.getElementById('hsBtnSplit');
+
+async function switchView(view) {
+  [bD, bO, bSp].forEach(function(btn) { btn.classList.remove('active', 'hs-active'); });
+  if (view === 'kr') {
+    dP.style.display = 'block'; oP.style.display = 'none';
+    wp.classList.remove('hs-split');
+    bD.classList.add('active', 'hs-active');
+    await renderPanel('ko', 'kr', '<i class="fas fa-fire"></i>🔥 급등 핫토픽 기사 분석');
+  } else if (view === 'us') {
+    dP.style.display = 'none'; oP.style.display = 'block';
+    wp.classList.remove('hs-split');
+    bO.classList.add('active', 'hs-active');
+    await renderPanel('en', 'us', '<i class="fas fa-chart-line"></i>해외 급등 뉴스 성향');
+  } else if (view === 'split') {
+    dP.style.display = 'block'; oP.style.display = 'block';
+    wp.classList.add('hs-split');
+    bSp.classList.add('active', 'hs-active');
+    await Promise.all([
+      renderPanel('ko', 'kr', '<i class="fas fa-fire"></i>🔥 급등 핫토픽 기사 분석'),
+      renderPanel('en', 'us', '<i class="fas fa-chart-line"></i>해외 급등 뉴스 성향'),
+    ]);
+  }
+}
+
+bD.addEventListener('click',  function() { switchView('kr'); });
+bO.addEventListener('click',  function() { switchView('us'); });
+bSp.addEventListener('click', function() { switchView('split'); });
+
+// ================================================================
+// 초기화
+// ================================================================
+window.addEventListener('DOMContentLoaded', async function() {
+  var session = await checkSession(false);
+  if (!session) return;
+  if (typeof renderSidebar === 'function') {
+    document.getElementById('sidebarWrap').innerHTML = renderSidebar('spike');
+    if (typeof bindSidebarEvents === 'function') bindSidebarEvents();
+  }
+  await switchView('kr');
+});
+</script>
+</body>
+</html>

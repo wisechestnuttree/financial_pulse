@@ -6,6 +6,7 @@
   <title>메인 대시보드 — Financial Pulse</title>
   <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+  <link rel="icon" type="image/jpeg" href="photo/LOGO.jpg">
   <link rel="stylesheet" href="css/common.css">
 </head>
 <body>
@@ -69,54 +70,127 @@
   </div>
 </div>
 
-<script src="js/core.js"></script>
+<script src="js/core.js?v=20260513-hotissue"></script>
+<script src="js/api.js?v=20260513-hotissue"></script>
 <script>
-// 전역 변수
+// ================================================================
+// 전역 상태
+// ================================================================
 window.curCountry = 'kr';
-window.curView = 'single';
+window.curView    = 'single';
+window.dashData   = { ko: null, en: null };
 
-// ========== 메트릭 카드 (4종) 업데이트 (summaryCrid) ==========
-function updateMetricCards(sectors, lbl) {
-  const {pos, neu, neg} = getSentiRatios(sectors);// 호출
-  const top = sectors.reduce((a,b) => a.articles.length > b.articles.length ? a : b);
-  const hot = sectors.reduce((a,b) => (a.today - a.normal) > (b.today - b.normal) ? a : b);
-  const risk = sectors.filter(s => s.articles.some(a => a.tag === '부정')).reduce((a,b) => (a.today - a.normal) > (b.today - b.normal) ? a : b);
-  const riskNegRatio = Math.round((risk.articles.filter(a => a.tag === '부정').length / risk.articles.length) * 100);
-  
+// ================================================================
+// API 호출
+// ================================================================
+async function fetchDashboard(lang) {
+  if (window.dashData[lang]) return window.dashData[lang];
+  try {
+    const res  = await fetch(BASE_URL + '/api/dashboard?lang=' + lang, { credentials: 'include' });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message);
+    window.dashData[lang] = json.data;
+    return json.data;
+  } catch(e) {
+    console.error('dashboard API 오류:', e);
+    return null;
+  }
+}
+
+// ================================================================
+// API 데이터 → core.js sectors 형식 변환
+// ================================================================
+function toCoreSectors(d) {
+  if (!d) return [];
+  return (d.sector_tendency || []).map(s => {
+    const spike    = (d.spike_analysis || []).find(sp => sp.sector === s.sector) || {};
+    const articles = (spike.articles || []).map(a => ({
+      title : a.title || '',
+      source: a.url   || '',
+      tag   : a.tendency === 'positive' ? '긍정' : a.tendency === 'negative' ? '부정' : '중립',
+    }));
+    return {
+      name    : s.sector,
+      normal  : spike.week_avg ? Math.round(spike.week_avg.pos) : 0,
+      today   : Math.round(s.pos),
+      articles: articles,
+    };
+  });
+}
+
+function toHotIssueItems(d) {
+  return (d.hot_issues || [])
+    .map(h => ({
+      keyword : h.keyword || '-',
+      count   : Number(h.count || 0),
+      week_avg: Number(h.week_avg || 0),
+      change  : Number(h.change || 0),
+    }))
+    .filter(h => h.count > 0)
+    .sort((a, b) => b.change - a.change)
+    .slice(0, 6);
+}
+
+// ================================================================
+// 메트릭 카드 — API 데이터 기반
+// ================================================================
+function updateMetricCards(d, lbl) {
+  const tendency = d.tendency    || { pos: 0, neg: 0, neu: 0, label: '-' };
+  const topKw    = d.top_keyword || { keyword: '-', count: 0 };
+  const posKw    = d.pos_keyword || { keyword: '-', ratio: 0 };
+  const negKw    = d.neg_keyword || { keyword: '-', ratio: 0 };
+
   document.getElementById('summaryGrid').innerHTML = `
     <div class="panel metric-card c-teal">
       <div class="mc-label">오늘 전체 분위기 (${lbl})</div>
-      <div class="mc-value" style="color:var(--teal);">긍정 ${Math.round(pos)}%</div>
-      <div class="mc-sub">중립 ${Math.round(neu)}% · 부정 ${Math.round(neg)}%</div>
+      <div class="mc-value" style="color:var(--teal);">${tendency.label || '긍정'} ${tendency.pos}%</div>
+      <div class="mc-sub">중립 ${tendency.neu}% · 부정 ${tendency.neg}%</div>
     </div>
     <div class="panel metric-card c-pos">
       <div class="mc-label">노출도 1위 키워드</div>
-      <div class="mc-value" style="color:var(--pos);">${top.name}</div>
-      <div class="mc-sub">기사 ${top.articles.length}건</div>
+      <div class="mc-value" style="color:var(--pos);">${topKw.keyword || '-'}</div>
+      <div class="mc-sub">기사 ${topKw.count}건</div>
     </div>
     <div class="panel metric-card c-gold">
-      <div class="mc-label">긍정 급등 1위 키워드</div>
-      <div class="mc-value" style="color:var(--gold);">${hot.name}</div>
-      <div class="mc-sub">+${hot.today - hot.normal}%p</div>
+      <div class="mc-label">긍정 1위 키워드</div>
+      <div class="mc-value" style="color:var(--gold);">${posKw.keyword || '-'}</div>
+      <div class="mc-sub">전체의 ${posKw.ratio}%</div>
     </div>
     <div class="panel metric-card c-neg">
-      <div class="mc-label">부정 급등 1위 키워드</div>
-      <div class="mc-value" style="color:var(--neg);">${risk.name}</div>
-      <div class="mc-sub">부정 ${riskNegRatio}%</div>
+      <div class="mc-label">부정 1위 키워드</div>
+      <div class="mc-value" style="color:var(--neg);">${negKw.keyword || '-'}</div>
+      <div class="mc-sub">전체의 ${negKw.ratio}%</div>
     </div>
   `;
 }
 
-// ========== 단일 보기 렌더링 ==========
-function renderSingleView() {
-  const sectors = curCountry === 'kr' ? krSectors : usSectors;
-  const lbl = curCountry === 'kr' ? '국내' : '해외';
-  
-  updateMetricCards(sectors, lbl);
-  document.getElementById('currentCountryBadge').innerText = lbl;
-  renderHotIssueGrid('hotIssueGrid', sectors);
-  
-  // dynamicContent 영역 채우기 (proto_v13 스타일)
+// ================================================================
+// 단일 보기 렌더링 — API 기반
+// ================================================================
+async function renderSingleView() {
+  const lang = curCountry === 'kr' ? 'ko' : 'en';
+  const lbl  = curCountry === 'kr' ? '국내' : '해외';
+
+  // 로딩 표시
+  document.getElementById('summaryGrid').innerHTML =
+    '<div style="color:var(--sub);padding:20px;">데이터 불러오는 중...</div>';
+  document.getElementById('currentCountryBadge').innerText = lbl === '국내' ? '🇰🇷 한국' : '🇺🇸 미국';
+
+  const d = await fetchDashboard(lang);
+  if (!d) {
+    document.getElementById('summaryGrid').innerHTML =
+      '<div style="color:var(--neg);padding:20px;">데이터를 불러오지 못했습니다.</div>';
+    return;
+  }
+
+  // 메트릭 카드
+  updateMetricCards(d, lbl);
+
+  // 핫이슈 — hot_issues 활용
+  const hotIssues = toHotIssueItems(d);
+  renderHotIssueGrid('hotIssueGrid', hotIssues.length ? hotIssues : toCoreSectors(d));
+
+  // dynamicContent 영역
   document.getElementById('dynamicContent').innerHTML = `
     <div class="two-col">
       <div class="col">
@@ -151,29 +225,128 @@ function renderSingleView() {
       </div>
     </div>
   `;
-  
-  // core.js에 정의된 렌더 함수들 호출
+
+  // 급등 기사 성향 — spike_analysis → core.js sectors 변환
+  const sectors = toCoreSectors(d);
   renderTrendAnalysis('trendGrid', sectors);
-  renderMarketSentiment('sentimentDonut', sectors);
-  renderSectorStack('sectorStack', sectors);
-  renderEcoIndicators('ecoIndicators', curCountry);
-  renderEcoCalendar('ecoCalendar', curCountry);
-  
-  // 이벤트 바인딩 (경제 지표 상세보기)
+
+  // 시장 전체 성향 — market_tendency 직접 활용
+  renderMarketSentimentFromApi('sentimentDonut', d.market_tendency);
+
+  // 섹터별 긍/부정 — sector_tendency 직접 활용
+  renderSectorStackFromApi('sectorStack', d.sector_tendency);
+
+  // 경제 지표 — eco_indicators DB 데이터
+  renderEcoIndicatorsFromApi('ecoIndicators', d.eco_indicators || []);
+
+  // 경제 일정 — eco_schedule CSV 데이터
+  renderEcoScheduleFromApi('ecoCalendar', d.eco_schedule || []);
+
+  // 링크 바인딩
   const ecoTitle = document.getElementById('ecoTitle');
-  if(ecoTitle) {
-    ecoTitle.onclick = () => {
-      const url = curCountry === 'kr' ? 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp' : 'https://www.tradingview.com/markets/usa/';
-      window.open(url, '_blank');
-    };
-  }
+  if (ecoTitle) ecoTitle.onclick = () => window.open(
+    curCountry === 'kr'
+      ? 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp'
+      : 'https://www.tradingview.com/markets/usa/', '_blank');
   const ecoCalLink = document.getElementById('ecoCalLink');
-  if(ecoCalLink) {
-    ecoCalLink.href = curCountry === 'kr' ? 'https://datacenter.hankyung.com/economic-calendar' : 'https://tradingeconomics.com/calendar';
+  if (ecoCalLink) ecoCalLink.href = curCountry === 'kr'
+    ? 'https://datacenter.hankyung.com/economic-calendar'
+    : 'https://tradingeconomics.com/calendar';
+
+  // 오늘의 키워드 — hot_issues 키워드 활용
+  const kwList = hotIssues.map(h => ({ keyword: h.keyword, totalNews: h.count }));
+  updateTodayKeywords(kwList.length ? kwList : (curCountry === 'kr' ? DOM_KW : GBL_KW));
+}
+
+// ================================================================
+// API 전용 렌더 함수들
+// ================================================================
+
+// 시장 전체 성향
+function renderMarketSentimentFromApi(cid, mt) {
+  if (!mt) return;
+  const fake = [
+    { articles: Array(mt.pos_count || 0).fill({ tag: '긍정' }) },
+    { articles: Array(mt.neg_count || 0).fill({ tag: '부정' }) },
+    { articles: Array(mt.neu_count || 0).fill({ tag: '중립' }) },
+  ];
+  renderMarketSentiment(cid, fake);
+}
+
+// 섹터별 긍/부정 비율
+function renderSectorStackFromApi(cid, sectorTendency) {
+  if (!sectorTendency || !sectorTendency.length) {
+    document.getElementById(cid).innerHTML = '<div style="color:var(--sub);font-size:13px;">데이터 없음</div>';
+    return;
   }
-  
-  // 오늘의 키워드 업데이트
-  updateTodayKeywords(curCountry === 'kr' ? DOM_KW : GBL_KW);
+  const stacks   = sectorTendency.map(s => ({ name: s.sector, pos: s.pos, neg: s.neg }));
+  const f4       = stacks.slice(0, 4);
+  const rest     = stacks.slice(4);
+  const c        = document.getElementById(cid);
+  if (!c) return;
+  const moreBtnId = cid + 'MoreBtn';
+  let html = f4.map(s => `
+    <div class="stack-item">
+      <div class="stack-label">
+        <span>${s.name}</span>
+        <span style="font-size:11px;color:var(--sub);">긍정 ${Math.round(s.pos)}% · 부정 ${Math.round(s.neg)}%</span>
+      </div>
+      <div class="stack-bar-bg">
+        <div class="stack-pos" style="width:${s.pos}%;"></div>
+        <div class="stack-neg" style="width:${s.neg}%;"></div>
+      </div>
+    </div>`).join('');
+  if (rest.length) html += `<div class="more-btn"><button id="${moreBtnId}">더보기 (${rest.length}개)</button></div>`;
+  c.innerHTML = html;
+  document.getElementById(moreBtnId)?.addEventListener('click', () => {
+    const mc = document.getElementById('moreModalContent');
+    if (mc) mc.innerHTML = rest.map(s => `
+      <div class="stack-item" style="margin-bottom:12px;">
+        <div class="stack-label"><span>${s.name}</span><span>${Math.round(s.pos)}% / ${Math.round(s.neg)}%</span></div>
+        <div class="stack-bar-bg">
+          <div class="stack-pos" style="width:${s.pos}%;"></div>
+          <div class="stack-neg" style="width:${s.neg}%;"></div>
+        </div>
+      </div>`).join('');
+    document.getElementById('moreModal')?.classList.add('show');
+  });
+}
+
+// 주요 경제 지표
+function renderEcoIndicatorsFromApi(cid, indicators) {
+  const c = document.getElementById(cid);
+  if (!c) return;
+  if (!indicators.length) { c.innerHTML = '<div style="color:var(--sub);font-size:13px;">데이터 없음</div>'; return; }
+  c.innerHTML = indicators.map(ind => `
+    <div class="ind-card">
+      <div class="ind-name">${ind.country === '미국' ? '🇺🇸' : '🇰🇷'} ${ind.label}</div>
+      <div class="ind-val">
+        ${ind.actual || '-'}
+        ${ind.previous ? `<span class="ind-chg">(이전: ${ind.previous})</span>` : ''}
+      </div>
+      <div style="font-size:11px;color:var(--sub);margin-top:4px;">${ind.date || ''}</div>
+    </div>`).join('');
+}
+
+// 경제 일정
+function renderEcoScheduleFromApi(cid, schedule) {
+  const c = document.getElementById(cid);
+  if (!c) return;
+  if (!schedule.length) { c.innerHTML = '<div style="color:var(--sub);font-size:13px;">일정 없음</div>'; return; }
+  c.innerHTML = schedule.map(ev => {
+    const imp = ev.importance || '';
+    let bdr = 'var(--teal)', label = '보통';
+    if (imp === 'high') { bdr = 'var(--neg)'; label = '중요'; }
+    else if (imp === 'mid') { bdr = 'var(--gold)'; label = '중간'; }
+    return `
+      <div class="sch-item" style="border-left-color:${bdr};">
+        <div class="sch-date">${ev.date || ''}</div>
+        <div class="sch-info">
+          <div class="sch-name">${ev.event || ev['경제일정'] || ''}</div>
+          <span class="sch-imp">${label}</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ========== 분할 보기 렌더링 ==========
@@ -217,35 +390,35 @@ function renderSplitView() {
 }
 
 // ========== 뷰 전환 ==========
-function switchView(view) {
+async function switchView(view) {
   window.curView = view;
-  if(view === 'single') {
+  document.querySelectorAll('[data-view]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.view === view);
+  });
+  if (view === 'single') {
     document.getElementById('splitView').style.display = 'none';
     document.getElementById('dynamicContent').style.display = 'block';
     document.getElementById('hotIssuePanelWrapper').style.display = 'block';
-    renderSingleView();
+    await renderSingleView();
   } else {
     document.getElementById('splitView').style.display = 'block';
     document.getElementById('dynamicContent').style.display = 'none';
     document.getElementById('hotIssuePanelWrapper').style.display = 'none';
     renderSplitView();
   }
-  document.querySelectorAll('[data-view]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.view === view);
-  });
 }
 
 // ========== 이벤트 바인딩 ==========
 function bindEvents() {
   // 국가 전환
   document.querySelectorAll('#countrySwitch .sw-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       curCountry = btn.dataset.country;
       document.querySelectorAll('#countrySwitch .sw-btn').forEach(b => b.classList.toggle('active', b.dataset.country === curCountry));
       if (curView === 'single') {
-        renderSingleView();               // 이미 단일 보기면 그냥 갱신
+        await renderSingleView();
       } else {
-        switchView('single');            // 분할 보기 → 단일 보기 전환 후 갱신
+        await switchView('single');
       }
     });
   });
@@ -298,7 +471,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (typeof bindSidebarEvents === 'function') bindSidebarEvents();
   
   bindEvents();
-  switchView('single'); // 초기 단일 보기
+  await switchView('single');
 });
 </script>
 </body>

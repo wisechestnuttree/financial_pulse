@@ -42,14 +42,28 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 import os
 from dotenv import load_dotenv
-# from router.dashboardRouter import router as dashboardRouter
-# from router.keywordRouter import router as keywordRouter
-# from router.spikeRouter import router as spikeRouter
-
+from router.dashboardRouter import router as dashboardRouter
+from router.keywordRouter import router as keywordRouter
+from router.spikeRouter import router as spikeRouter
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 load_dotenv()
 
 app = FastAPI()
+
+# ── HTML 라우트 (마운트보다 먼저 등록) ──
+@app.get("/")
+def root():
+    return FileResponse("view/index.html")
+
+@app.get("/{filename}.html")
+def serve_html(filename: str):
+    import os
+    path = f"view/{filename}.html"
+    if not os.path.exists(path):
+        return JSONResponse(status_code=404, content={"success": False, "message": "페이지를 찾을 수 없습니다.", "data": None})
+    return FileResponse(path)
 
 # ================================================================
 # 세션 미들웨어 등록
@@ -86,6 +100,8 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 from router.memberRouter import router as memberRouter
 
 app.include_router(memberRouter)
-# app.include_router(dashboardRouter)
-# app.include_router(keywordRouter)
-# app.include_router(spikeRouter)
+app.include_router(dashboardRouter)
+app.include_router(keywordRouter)
+app.include_router(spikeRouter)
+
+app.mount("/", StaticFiles(directory="view"), name="static")

@@ -111,10 +111,9 @@ async function apiFindId(name, phone_num) {
 // [6] 비밀번호 찾기 (임시 비밀번호 발급)
 // POST /membership/find-pw
 // ================================================================
-async function apiFindPw(email) {
-    await api('POST', '/membership/find-pw', { email });
+async function apiFindPw(email, name, phone_num) {
+    await api('POST', '/membership/find-pw', { email, name, phone_num });
 }
-
 
 // ================================================================
 // [7] 비밀번호 변경

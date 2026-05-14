@@ -16,7 +16,7 @@ logger = getLogger("user")
 
 # 일반 사용자용 라우터 — API Key 인증 없음
 # API Key는 관리자 라우터(/admin/...)에서만 사용
-router = APIRouter(prefix="/member", tags=["member"])
+router = APIRouter(prefix="/membership", tags=["membership"])
 
 
 # ================================================================
