@@ -45,4 +45,8 @@ def export(req: ExportRequest, api_key=Depends(verifyApiKey)):
         start_time=req.start_time,
         end_time=req.end_time
     )
-    return PlainTextResponse("\n".join(jsonl), media_type="application/x-ndjson")
+    return PlainTextResponse(
+        "\n".join(jsonl),
+        media_type="application/x-ndjson",
+        headers={"Content-Disposition": "attachment; filename=corrections.jsonl"}
+    )

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from model.crawlModel import CrawlRequest, RetryRequest, RetrySelectedRequest
-from service.crawlSvc import runCrawlBatch, extractErrorUrls, retryErrorUrls, getCrawlSummary, retrySelectedUrls
+from service.crawlSvc import runCrawlBatch, getErrorLogC, retryErrorUrls, getCrawlSummary, retrySelectedUrls
 from encryption.encAuth import verifyApiKey
 
 router = APIRouter(prefix="/crawl", tags=["crawl"])
@@ -27,7 +27,7 @@ def errors(batch_id: str, api_key=Depends(verifyApiKey)):
     실패 URL 조회
     - 인증 필요 이유: 내부 크롤링 오류 데이터 보호
     """
-    error_urls = extractErrorUrls(batch_id)
+    error_urls = getErrorLogC(batch_id)
     return {"batch_id": batch_id, "error_urls": error_urls, "total": len(error_urls)}
 
 @router.post("/retry")

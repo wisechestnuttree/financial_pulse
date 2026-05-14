@@ -17,7 +17,11 @@ def search(req: LogSearchRequest, api_key=Depends(verifyApiKey)):
 def export(req: LogSearchRequest, api_key=Depends(verifyApiKey)):
     """CSV 내보내기 - logViewer CSV 내보내기 버튼 처리"""
     csv_data = exportLogCsv(req)
-    return PlainTextResponse(csv_data, media_type="text/csv; charset=utf-8")
+    return PlainTextResponse(
+        csv_data,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": "attachment; filename=logs.csv"}
+    )
 
 @router.get("/summary")
 def summary(subject: str = None, api_key=Depends(verifyApiKey)):

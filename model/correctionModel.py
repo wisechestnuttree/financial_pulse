@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from typing import Literal
 
 class CorrectionRequest(BaseModel):
     """
@@ -10,7 +11,7 @@ class CorrectionRequest(BaseModel):
     → 로그 기록
     """
     doc_id:     str
-    tendency:   str
+    tendency:   Literal["긍정", "부정", "중립"]
     tend_score: float
 
 class ExportRequest(BaseModel):

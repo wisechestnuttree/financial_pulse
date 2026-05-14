@@ -11,9 +11,9 @@ def detectIrregular() -> dict:
     비정형 감지 - tend_score 95 이상 또는 5 이하 기사 탐지
     → dataCon UI 검토 필요 목록 처리
     """
-    logger.info("비정형 감지 시작")
+    logger.info("비정형 감지 시작", extra={"action": "detectIrregular"})
 
-    es     = getEs()
+    es = getEs()
     result = es.search(
         index=ANALYZE_DATA_IDX,
         body={
@@ -21,13 +21,14 @@ def detectIrregular() -> dict:
                 {"range": {"tend_score": {"gte": 95}}},
                 {"range": {"tend_score": {"lte":  5}}}
             ]}},
+            "_source": ["doc_id", "title", "url", "tend_score", "tendency"],
             "size": 1000
         }
     )
     docs = [hit["_source"] for hit in result["hits"]["hits"]]
     es.close()
 
-    logger.info("비정형 감지 완료", extra={"detected_cnt": len(docs)})
+    logger.info(f"비정형 감지 완료 ({len(docs)})", extra={"action": "detectIrregular"})
     return {"total": len(docs), "docs": docs}
 
 
@@ -39,10 +40,9 @@ def applyCorrection(doc_id: str, tendency: str, tend_score: float) -> dict:
     3. 보정 로그 자동 기록 (logger → ESHandler → fp-logs-ml)
     """
     logger.info("보정 확정 시작", extra={
-        "doc_id": doc_id, "tendency": tendency, "tend_score": tend_score
-    })
+        "action": "applyCorrection", "doc_id": doc_id, "tendency": tendency, "tend_score": tend_score})
 
-    es          = getEs()
+    es = getEs()
     update_body = {"doc": {"tendency": tendency, "tend_score": tend_score}}
 
     es.update(index=ANALYZE_DATA_IDX, id=doc_id, body=update_body)
@@ -50,8 +50,7 @@ def applyCorrection(doc_id: str, tendency: str, tend_score: float) -> dict:
     es.close()
 
     logger.info("보정 확정 완료", extra={
-        "doc_id": doc_id, "tendency": tendency, "tend_score": tend_score
-    })
+        "action": "applyCorrection", "doc_id": doc_id, "tendency": tendency, "tend_score": tend_score})
     return {"doc_id": doc_id, "tendency": tendency, "tend_score": tend_score, "status": "보정 완료"}
 
 
@@ -67,7 +66,7 @@ def deleteArticle(doc_id: str) -> dict:
     # es.delete(index=SEARCH_INDEX,  id=doc_id)
     es.close()
 
-    logger.warning("기사 삭제 완료", extra={"doc_id": doc_id})
+    logger.warning("기사 삭제 완료", extra={"action": "deleteArticle", "doc_id": doc_id})
     return {"doc_id": doc_id, "status": "삭제 완료"}
 
 
@@ -78,12 +77,11 @@ def exportCorrections(start_time: str, end_time: str) -> list:
     - ML 모델 재학습 데이터로 활용
     """
     logger.info("학습 데이터 내보내기 시작", extra={
-        "start_time": start_time, "end_time": end_time
-    })
+        "action": "exportCorrections", "start_time": start_time, "end_time": end_time})
 
-    es   = getEs()
+    es = getEs()
     docs = scan(
-        es, index="fp-logs-ml",
+        es, index="logs_ml",
         query={
             "query": {"bool": {"must": [
                 {"match": {"message": "보정 확정"}},
@@ -95,5 +93,5 @@ def exportCorrections(start_time: str, end_time: str) -> list:
     jsonl = [json.dumps(doc["_source"]["extra"], ensure_ascii=False) for doc in docs]
     es.close()
 
-    logger.info("학습 데이터 내보내기 완료", extra={"export_cnt": len(jsonl)})
+    logger.info("학습 데이터 내보내기 완료", extra={"action": "exportCorrections", "export_cnt": len(jsonl)})
     return jsonl
