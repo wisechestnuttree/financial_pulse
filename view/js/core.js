@@ -75,7 +75,7 @@ function renderSidebar(activeId) {
     const s = JSON.parse(localStorage.getItem('fp_session') || sessionStorage.getItem('fp_session') || 'null');
     email = s ? s.email : '';
   }
-
+  
   // proto_v13 스타일의 사이드바 반환
   return `
     <aside class="sidebar">
@@ -249,104 +249,147 @@ function _drawDonut(container, overall){
   container.innerHTML='';container.appendChild(svg);
 }
 
-// 성향 분석 오버레이(키워드 검색)<data(.js): 키워드별 성향->analysisData객체, 관련 뉴스->_genNews()>
-function openAnalysisOverlay(kw) {
-  if(!kw) return;
-  let data = analysisData[kw];
-  if(!data){
-    const kwLower = kw.toLowerCase();
-    const found = Object.keys(analysisData).find(k=>k.toLowerCase()===kwLower || k.toLowerCase().includes(kwLower) || kwLower.includes(k.toLowerCase()));
-    if(found) data = analysisData[found];
-  }
-  if(!data){
-    const sectors = (window.curCountry === 'kr') ? krSectors : usSectors;
-    const matched = sectors.find(s=>s.name===kw || kw.includes(s.name));
-    if(matched){
-      const pos = matched.articles.length ? Math.round(matched.articles.filter(a=>a.tag==='긍정').length/matched.articles.length*100) : 60;
-      const neg = matched.articles.length ? Math.round(matched.articles.filter(a=>a.tag==='부정').length/matched.articles.length*100) : 15;
-      data = {overall:{pos,neu:100-pos-neg,neg}, sectors:[{name:kw,pos,neg}]};
-    } else {
-      data = {overall:{pos:62,neu:22,neg:16}, sectors:[{name:kw,pos:62,neg:16}]};
-    }
-  }
-
-  const news = _genNews(kw, data.sectors);
-  const score = (data.overall.pos/100).toFixed(2);
-  const scoreLabel = data.overall.pos>=60?'긍정':data.overall.pos<=40?'부정':'중립';
-  const scoreCls = data.overall.pos>=60?'var(--pos)':data.overall.pos<=40?'var(--neg)':'var(--neu)';
-  const scoreTagCls = data.overall.pos>=60?'badge-pos':data.overall.pos<=40?'badge-neg':'badge-neu';
-
-  document.getElementById('aoContent').innerHTML = `
-    <div class="ao-kw-header">
-      <div class="ao-kw-title"><div class="ao-acc-bar"></div><span>"${_esc(kw)}" 성향 분석 결과</span></div>
-
-    </div>
-    <div class="ao-main-grid">
-      <div class="ao-card">
-        <div class="ao-card-title"><i class="fas fa-circle-half-stroke"></i>전체 분위기 비율</div>
-
-        <div class="ao-donut-wrap">
-          <div class="ao-donut-chart-wrap">
-            <div class="ao-donut-chart" id="aoMainDonut"></div>
-            <div class="ao-donut-center"><strong>${data.overall.pos}%</strong><small>긍정</small></div>
-          </div>
-          <div class="ao-legend">
-            <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 ${data.overall.pos}%</span>
-            <span class="ao-leg"><span class="ao-leg-dot" style="background:#8E9CC5;"></span>중립 ${data.overall.neu}%</span>
-            <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 ${data.overall.neg}%</span>
-          </div>
-        </div>
-        <div class="ao-score-box">
-          <span class="ao-score-lbl">🎯 종합 성향 점수 (0~1)</span>
-          <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-            <span class="ao-score-val">${score}</span>
-            <span class="ao-score-badge" style="background:${data.overall.pos>=60?'var(--pos-s)':data.overall.pos<=40?'var(--neg-s)':'rgba(142,156,197,.12)'};color:${scoreCls};">${scoreLabel}</span>
-          </div>
-        </div>
-        <div style="margin-top:7px;font-size:11px;color:var(--sub);">* 0.6 이상 긍정, 0.4 이하 부정 기준</div>
-      </div>
-      <div class="ao-card" style="display:flex;flex-direction:column;">
-        <div class="ao-card-title"><i class="fas fa-chart-bar"></i>연관 분야별 긍정/부정 비교</div>
-
-        <div class="ao-compare-grid" id="aoCompareGrid"></div>
-        <div class="ao-cmp-legend">
-          <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 비율</span>
-          <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 비율</span>
-        </div>
-      </div>
-    </div>
-    <div>
-      <div class="ao-news-header">
-        <div class="ao-card-title" style="margin-bottom:0;font-size:17px;"><i class="fas fa-newspaper"></i>관련 뉴스 <span style="font-size:13px;color:var(--sub);font-weight:600;">(1순위: 직접 / 2순위: 연관분야)</span></div>
-        <div style="font-size:12px;color:var(--sub);font-weight:600;">총 ${news.length}개</div>
-      </div>
-      <div class="ao-news-grid" id="aoNewsList"></div>
-    </div>`;
-
-  // 도넛 차트
-  _drawDonut(document.getElementById('aoMainDonut'), data.overall);
-
-  // 막대 비교
-  const cg = document.getElementById('aoCompareGrid');
-  data.sectors.slice(0,3).forEach(s=>{
-    let ph=Math.min(s.pos*2.4,210),nh=Math.min(s.neg*2.4,210);ph=Math.max(ph,18);nh=Math.max(nh,18);
-    const col=document.createElement('div');col.className='ao-cmp-col';
-    col.innerHTML=`<div class="ao-bar-pair"><div class="ao-bw"><div class="ao-bv">${s.pos}%</div><div class="ao-bar ao-bar-pos" style="height:${ph}px;"></div></div><div class="ao-bw"><div class="ao-bv">${s.neg}%</div><div class="ao-bar ao-bar-neg" style="height:${nh}px;"></div></div></div><div class="ao-cmp-lbl">${_esc(s.name)}</div>`;
-    cg.appendChild(col);
-  });
-
-  // 뉴스
-  const nl = document.getElementById('aoNewsList');
-  nl.innerHTML = news.map(n=>{
-    const tc=n.tag==='긍정'?'ao-tag-pos':n.tag==='부정'?'ao-tag-neg':'ao-tag-neu';
-    return`<div class="ao-news-card"><div class="ao-news-title">📌 ${_esc(n.title)}</div><div class="ao-news-meta"><span class="ao-nm-tag ${tc}">${n.tag}</span><span>📰 ${_esc(n.source)}</span><span>🏷️ ${_esc(n.sector)}</span></div></div>`;
-  }).join('');
-
-  // 오버레이 열기
+// ================================================================
+// API 기반 키워드 성향 분석 오버레이
+// ================================================================
+async function openAnalysisOverlay(kw) {
+  if (!kw) return;
   const overlay = document.getElementById('analysisOverlay');
+  const contentDiv = document.getElementById('aoContent');
+  if (!overlay || !contentDiv) return;
+
+  contentDiv.innerHTML = `
+    <div style="display:flex;justify-content:center;align-items:center;min-height:300px;">
+      <i class="fas fa-spinner fa-pulse" style="font-size:2rem;color:var(--teal);"></i>
+      <span style="margin-left:12px;font-weight:600;">“${_esc(kw)}” 분석 중...</span>
+    </div>
+  `;
   overlay.classList.add('show');
-  overlay.scrollTop = 0;
-  document.getElementById('analysisBox').scrollTop = 0;
+
+  try {
+    const url = `${BASE_URL}/api/search?keyword=${encodeURIComponent(kw)}`;
+    console.log('[분석요청]', url);
+    const res = await fetch(url, { credentials: 'include' });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.message || '검색 결과 없음');
+
+    const data = json.data;
+    const overall = data.overall;
+    const sectors = data.sectors || [];
+    const articles = data.articles || [];
+
+    let pos = overall.pos ?? 0;
+    let neg = overall.neg ?? 0;
+    let neu = Math.max(0, 100 - pos - neg);
+    const score = (overall.score ?? (pos / 100)).toFixed(2);
+    const scoreLabel = overall.label || (pos >= 60 ? '긍정' : pos <= 40 ? '부정' : '중립');
+    const scoreCls = pos >= 60 ? 'var(--pos)' : pos <= 40 ? 'var(--neg)' : 'var(--neu)';
+
+    // ★ dominant 계산
+    const sentiments = [
+      { label: '긍정', value: pos, color: '#2ECC71' },
+      { label: '중립', value: neu, color: '#8E9CC5' },
+      { label: '부정', value: neg, color: '#E74C3C' }
+    ];
+    const dominant = sentiments.reduce((max, s) => s.value > max.value ? s : max, sentiments[0]);
+
+    contentDiv.innerHTML = `
+      <div class="ao-kw-header">
+        <div class="ao-kw-title"><div class="ao-acc-bar"></div><span>"${_esc(kw)}" 성향 분석 결과</span></div>
+      </div>
+      <div class="ao-main-grid">
+        <div class="ao-card">
+          <div class="ao-card-title"><i class="fas fa-circle-half-stroke"></i>전체 분위기 비율</div>
+          <div class="ao-donut-wrap">
+            <div class="ao-donut-chart-wrap">
+              <div class="ao-donut-chart" id="aoMainDonut"></div>
+              <div class="ao-donut-center">
+                <strong>${dominant.value}%</strong>
+                <small>${dominant.label}</small>
+              </div>
+            </div>
+            <div class="ao-legend">
+              <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 ${pos}%</span>
+              <span class="ao-leg"><span class="ao-leg-dot" style="background:#8E9CC5;"></span>중립 ${neu}%</span>
+              <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 ${neg}%</span>
+            </div>
+          </div>
+          <div class="ao-score-box">
+            <span class="ao-score-lbl">🎯 종합 성향 점수 (0~1)</span>
+            <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+              <span class="ao-score-val">${score}</span>
+              <span class="ao-score-badge" style="background:${pos>=60?'var(--pos-s)':pos<=40?'var(--neg-s)':'rgba(142,156,197,.12)'};color:${scoreCls};">${scoreLabel}</span>
+            </div>
+          </div>
+          <div style="margin-top:7px;font-size:11px;color:var(--sub);">* 0.6 이상 긍정, 0.4 이하 부정 기준</div>
+        </div>
+        <div class="ao-card" style="display:flex;flex-direction:column;">
+          <div class="ao-card-title"><i class="fas fa-chart-bar"></i>연관 분야별 긍정/부정 비교</div>
+          <div class="ao-compare-grid" id="aoCompareGrid"></div>
+          <div class="ao-cmp-legend">
+            <span class="ao-leg"><span class="ao-leg-dot" style="background:#2ECC71;"></span>긍정 비율</span>
+            <span class="ao-leg"><span class="ao-leg-dot" style="background:#E74C3C;"></span>부정 비율</span>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="ao-news-header">
+          <div class="ao-card-title"><i class="fas fa-newspaper"></i>관련 뉴스 <span style="font-size:13px;color:var(--sub);">(클릭 시 원문 이동)</span></div>
+          <div style="font-size:12px;color:var(--sub);">총 ${articles.length}개</div>
+        </div>
+        <div class="ao-news-grid" id="aoNewsList"></div>
+      </div>
+    `;
+
+    _drawDonut(document.getElementById('aoMainDonut'), { pos, neu, neg });
+
+    // 섹터 비교 (relevance 높은 순 3개)
+    const topSectors = [...sectors].sort((a,b)=>(b.relevance||0)-(a.relevance||0)).slice(0,3);
+    const compareGrid = document.getElementById('aoCompareGrid');
+    compareGrid.innerHTML = '';
+    topSectors.forEach(s => {
+      const sPos = s.pos ?? 0;
+      const sNeg = s.neg ?? 0;
+      const ph = Math.min(sPos * 2.4, 210);
+      const nh = Math.min(sNeg * 2.4, 210);
+      const col = document.createElement('div');
+      col.className = 'ao-cmp-col';
+      col.innerHTML = `
+        <div class="ao-bar-pair">
+          <div class="ao-bw"><div class="ao-bv">${sPos}%</div><div class="ao-bar ao-bar-pos" style="height:${ph}px;"></div></div>
+          <div class="ao-bw"><div class="ao-bv">${sNeg}%</div><div class="ao-bar ao-bar-neg" style="height:${nh}px;"></div></div>
+        </div>
+        <div class="ao-cmp-lbl">${_esc(s.sector)}</div>
+      `;
+      compareGrid.appendChild(col);
+    });
+    if (!topSectors.length) compareGrid.innerHTML = '<div style="padding:20px;text-align:center;">연관 분야 없음</div>';
+
+    const newsContainer = document.getElementById('aoNewsList');
+    newsContainer.innerHTML = '';
+    articles.forEach(art => {
+      const tendency = (art.tendency || '').toLowerCase();
+      let tagClass = 'ao-tag-neu', tagText = '중립';
+      if (tendency === 'positive') { tagClass = 'ao-tag-pos'; tagText = '긍정'; }
+      else if (tendency === 'negative') { tagClass = 'ao-tag-neg'; tagText = '부정'; }
+      const card = document.createElement('div');
+      card.className = 'ao-news-card';
+      card.style.cursor = 'pointer';
+      card.innerHTML = `
+        <div class="ao-news-title">📌 ${_esc(art.title)}</div>
+        <div class="ao-news-meta">
+          <span class="ao-nm-tag ${tagClass}">${tagText}</span>
+          <span>📰 ${_esc(art.sector || '금융')}</span>
+          <span>🏷️ 점수: ${(art.tend_score ?? 0).toFixed(2)}</span>
+        </div>
+      `;
+      card.addEventListener('click', () => { if(art.url) window.open(art.url, '_blank'); });
+      newsContainer.appendChild(card);
+    });
+  } catch (err) {
+    console.error(err);
+    contentDiv.innerHTML = `<div style="text-align:center;padding:40px;color:var(--neg);"><i class="fas fa-circle-exclamation"></i><br/>분석 실패: ${_esc(err.message)}</div>`;
+  }
 }
 // --- Preview Image Logic ---
 function showPreview(imgSrc) {
@@ -382,10 +425,38 @@ const calendarData={kr:[{date:"4월 17일",event:"한국은행 금리 결정문"
 function getSentiRatios(sectors){let p=0,n=0,neu=0,t=0;sectors.forEach(s=>s.articles.forEach(a=>{t++;if(a.tag==='긍정')p++;else if(a.tag==='부정')n++;else neu++;}));if(t===0)return{pos:33.3,neu:33.3,neg:33.3};return{pos:(p/t)*100,neu:(neu/t)*100,neg:(n/t)*100};}
 function getSectorStack(sectors){return sectors.map(s=>{let pos=0,neg=0,t=s.articles.length;s.articles.forEach(a=>{if(a.tag==='긍정')pos++;else if(a.tag==='부정')neg++;});return{name:s.name,pos:t?(pos/t)*100:0,neg:t?(neg/t)*100:0};});}
 
-// 오늘의 핫이슈 렌더 함수 <data(.js): articles.length>(dashboard.html의 renderSingleView에서 호출)
-function renderHotIssueGrid(cid,sectors){const mx=Math.max(...sectors.map(s=>s.articles.length),1);document.getElementById(cid).innerHTML=`<div class="hot-issue-grid">${sectors.slice(0,6).map(s=>`<div class="hi-card" data-sector='${JSON.stringify(s)}'><div class="hic-kw"><span>${s.name}</span><span class="hic-badge">📰 ${s.articles.length}건</span></div><div class="bar-track"><div class="bar-fill" style="width:${(s.articles.length/mx)*100}%"></div></div><div class="hic-sub"><i class="fas fa-magnifying-glass" style="margin-right:4px;color:var(--teal);"></i>클릭 시 검색 결과 보기</div></div>`).join('')}</div>`;document.querySelectorAll(`#${cid} .hi-card`).forEach(c=>c.addEventListener('click',()=>{const s=JSON.parse(c.dataset.sector);openAnalysisOverlay(s.name);}));}
+// 오늘의 핫이슈 렌더 함수
+function renderHotIssueGrid(cid, sectors) {
+  const c = document.getElementById(cid);
+  if (!c) return;
+  const items = Array.isArray(sectors) ? sectors.filter(Boolean) : [];
+  if (!items.length) {
+    c.innerHTML = '<div style="color:var(--sub);font-size:13px;padding:18px 24px 24px;">핫이슈 데이터 없음</div>';
+    return;
+  }
+  const getTitle = item => item.keyword || item.name || '-';
+  const getCount = item => Number(item.count || item.totalNews || (item.articles ? item.articles.length : 0) || item.today || 0);
+  const maxCount = Math.max(...items.map(getCount), 1);
+  const cards = items.slice(0, 6).map(item => {
+    const title = getTitle(item);
+    const count = getCount(item);
+    const weekAvg = Number(item.week_avg || item.weekAvg || item.normal || 0);
+    const change = Number(item.change || 0);
+    const width = Math.max((count / maxCount) * 100, count > 0 ? 4 : 0);
+    const detailText = change
+      ? `7일 평균 ${weekAvg.toFixed(1)}건 · 변화율 ${change > 0 ? '+' : ''}${change.toFixed(1)}%`
+      : '클릭 시 검색 결과 보기';
+    const safeTitle = _esc(title);
+    const attrTitle = safeTitle.replace(/"/g, '&quot;');
+    return `<div class="hi-card" data-keyword="${attrTitle}"><div class="hic-kw"><span>${safeTitle}</span><span class="hic-badge">📰 ${count}건</span></div><div class="bar-track"><div class="bar-fill" style="width:${width}%"></div></div><div class="hic-sub"><i class="fas fa-magnifying-glass" style="margin-right:4px;color:var(--teal);"></i>${detailText}</div></div>`;
+  }).join('');
+  c.innerHTML = `<div class="hot-issue-grid">${cards}</div>`;
+  document.querySelectorAll(`#${cid} .hi-card`).forEach(card => card.addEventListener('click', () => {
+    openAnalysisOverlay(card.dataset.keyword);
+  }));
+}
 // 급등 기사 성향 분석 렌더 함수 <data(.js): .normal, .today, .articles>
-function renderTrendAnalysis(cid,sectors){const c=document.getElementById(cid);if(!c)return;c.innerHTML=sectors.map(s=>{const d=s.today-s.normal,a=d>=0?'▲':'▼';return`<div class="trend-card" data-sector='${JSON.stringify(s)}'><div class="tc-head"><div class="tc-name">${s.name}</div><div class="tc-badge">📰 ${s.articles.length}건</div></div><div class="tc-delta" style="color:${d>=0?'var(--pos)':'var(--neg)'}"><span>${a}</span> ${Math.abs(d)}%p 변화</div><div class="tc-bars"><div class="tc-bar-box"><div class="tiny">평소</div><div class="mini-track"><div class="mini-fill" style="width:${s.normal}%;background:var(--neu);"></div></div><div class="tiny">${s.normal}%</div></div><div class="tc-bar-box"><div class="tiny">오늘</div><div class="mini-track"><div class="mini-fill" style="width:${s.today}%;background:var(--teal);"></div></div><div class="tiny">${s.today}%</div></div></div></div>`;}).join('');document.querySelectorAll(`#${cid} .trend-card`).forEach(c=>c.addEventListener('click',()=>{const s=JSON.parse(c.dataset.sector);alert(`📊 [${s.name}]\n변화율: ${s.today-s.normal}%p\n\n${s.articles.map(a=>`• ${a.title} (${a.source} / ${a.tag})`).join('\n')}`);}));}
+function renderTrendAnalysis(cid,sectors){const c=document.getElementById(cid);if(!c)return;const items=Array.isArray(sectors)?sectors.filter(Boolean):[];c.innerHTML=items.map(s=>{const articles=Array.isArray(s.articles)?s.articles:[];const d=s.today-s.normal,a=d>=0?'▲':'▼';return`<div class="trend-card" data-sector='${JSON.stringify({...s,articles})}'><div class="tc-head"><div class="tc-name">${s.name}</div><div class="tc-badge">📰 ${articles.length}건</div></div><div class="tc-delta" style="color:${d>=0?'var(--pos)':'var(--neg)'}"><span>${a}</span> ${Math.abs(d)}%p 변화</div><div class="tc-bars"><div class="tc-bar-box"><div class="tiny">평소</div><div class="mini-track"><div class="mini-fill" style="width:${s.normal}%;background:var(--neu);"></div></div><div class="tiny">${s.normal}%</div></div><div class="tc-bar-box"><div class="tiny">오늘</div><div class="mini-track"><div class="mini-fill" style="width:${s.today}%;background:var(--teal);"></div></div><div class="tiny">${s.today}%</div></div></div></div>`;}).join('');document.querySelectorAll(`#${cid} .trend-card`).forEach(c=>c.addEventListener('click',()=>{const s=JSON.parse(c.dataset.sector);const articles=Array.isArray(s.articles)?s.articles:[];alert(`📊 [${s.name}]\n변화율: ${s.today-s.normal}%p\n\n${articles.map(a=>`• ${a.title} (${a.source} / ${a.tag})`).join('\n')}`);}));}
 // 시장 전체 성향 비율 렌더 함수(data(.js): getSentiRatios()가 계산)
 function renderMarketSentiment(cid,sectors){const{pos,neu,neg}=getSentiRatios(sectors);const sz=200,r=sz/2,inn=58,c=r;const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("width",sz);svg.setAttribute("height",sz);svg.setAttribute("viewBox",`0 0 ${sz} ${sz}`);let st=0;[[pos,'#2ECC71'],[neu,'#8E9CC5'],[neg,'#E74C3C']].forEach(([val,col])=>{if(val===0)return;const ang=(val/100)*360,end=st+ang;const rS=(st-90)*Math.PI/180,rE=(end-90)*Math.PI/180;const x1=c+r*Math.cos(rS),y1=c+r*Math.sin(rS),x2=c+r*Math.cos(rE),y2=c+r*Math.sin(rE);const lg=ang>180?1:0;const p=document.createElementNS("http://www.w3.org/2000/svg","path");p.setAttribute("d",`M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} Z`);p.setAttribute("fill",col);p.setAttribute("stroke","white");p.setAttribute("stroke-width","3");svg.appendChild(p);st=end;});const ic=document.createElementNS("http://www.w3.org/2000/svg","circle");ic.setAttribute("cx",c);ic.setAttribute("cy",c);ic.setAttribute("r",inn);ic.setAttribute("fill","#f0f6ff");svg.appendChild(ic);
 const items=[{n:'긍정',p:pos,c:'#2ECC71'},{n:'중립',p:neu,c:'#8E9CC5'},{n:'부정',p:neg,c:'#E74C3C'}];const top=items.reduce((m,i)=>i.p>m.p?i:m,items[0]);

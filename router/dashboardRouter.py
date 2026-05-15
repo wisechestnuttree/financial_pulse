@@ -173,18 +173,19 @@ def buildTendency(res_a: dict):
     return tendency, market_tendency
 
 
-def buildTopKeyword(res_b: dict) -> dict:
+def buildTopSector(res_f: dict) -> dict:
     """
-    오늘 노출도 1위 키워드 반환 (2번)
+    오늘 기사량 1위 섹터 반환
 
-    res_b   : msearch 쿼리 B 응답 (오늘 keyword 집계)
-    반환     : { keyword, count }
-    사용처   : 대시보드 상단 "노출도 1위 키워드" 메트릭 카드
+    res_f   : msearch 쿼리 F 응답 (오늘 sector × tendency)
+    반환     : { sector, count }
+    사용처   : 대시보드 상단 "섹터 1위" 메트릭 카드
     """
-    buckets = res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])
+    buckets = res_f.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     if not buckets:
-        return {"keyword": None, "count": 0}
-    return {"keyword": buckets[0]["key"], "count": buckets[0]["doc_count"]}
+        return {"sector": None, "count": 0}
+    top = max(buckets, key=lambda b: b["doc_count"])
+    return {"sector": translateSector(top["key"]), "count": top["doc_count"]}
 
 
 def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
@@ -208,36 +209,20 @@ def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
 
 
 def buildHotIssues(res_b: dict, res_c: dict) -> list:
+    """오늘의 핫이슈 키워드 목록 반환 (5번)
+    오늘 기사량 내림차순 → 상위 6개
     """
-    오늘의 핫이슈 키워드 목록 반환 (5번)
+    buckets = res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])
 
-    res_b   : msearch 쿼리 B 응답 (오늘 keyword 집계)
-    res_c   : msearch 쿼리 C 응답 (7일  keyword 집계)
-    조건     : 7일 평균 대비 오늘 언급량 10% 이상 급등한 키워드
-    정렬     : 변화량 내림차순
-    반환     : [ { keyword, count, week_avg, change }, ... ] 최대 6개
-    사용처   : 대시보드 "오늘의 핫이슈" 패널
-    """
-    today_map = {b["key"]: b["doc_count"]
-                 for b in res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])}
-    week_map  = {b["key"]: b["doc_count"] / 7
-                 for b in res_c.get("aggregations", {}).get("keywords", {}).get("buckets", [])}
+    issues = [
+        {
+            "keyword": b["key"],
+            "count"  : b["doc_count"],
+        }
+        for b in buckets
+    ]
 
-    issues = []
-    for kw, today_cnt in today_map.items():
-        week_avg = week_map.get(kw, 0)
-        if week_avg == 0:
-            continue
-        change = round((today_cnt - week_avg) / week_avg * 100, 1)
-        if change >= 10:
-            issues.append({
-                "keyword" : kw,
-                "count"   : today_cnt,
-                "week_avg": round(week_avg, 1),
-                "change"  : change,
-            })
-
-    issues.sort(key=lambda x: x["change"], reverse=True)
+    issues.sort(key=lambda x: x["count"], reverse=True)
     return issues[:6]
 
 
@@ -392,7 +377,7 @@ def getDashboard(lang: str = "ko"):
 
     # ── 번호별 조립 ─────────────────────────────────────────────
     tendency, market_tendency    = buildTendency(res_a)
-    top_keyword                  = buildTopKeyword(res_b)
+    top_keyword = buildTopSector(res_f)
     pos_keyword, neg_keyword     = buildPosNegKeyword(res_d, res_e, tendency["total"])
     hot_issues                   = buildHotIssues(res_b, res_c)
     spike_analysis, sector_tendency = buildSpikeAndSector(res_f, res_g)

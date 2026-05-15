@@ -182,7 +182,7 @@ def buildSectorChanges(today_ratios: dict, res_b: dict, res_c: dict,
     article_buckets = res_c.get("aggregations", {}).get("sector_breakdown", {}).get("buckets", [])
     sector_articles = {}
     for b in article_buckets:
-        sector = b["key"]
+        sector = translateSector(b["key"])
         hits = b.get("top_articles", {}).get("hits", {}).get("hits", [])
         articles = []
         for h in hits:

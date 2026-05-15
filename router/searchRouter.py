@@ -234,6 +234,7 @@ def buildArticles(res_c: dict, top3_sectors: list, doc_ids: list,
         source = h.get("_source", {})
         doc_id = h.get("_id") or source.get("doc_id")
         source["url"]  = _fetchUrl(es, doc_id)
+        source["sector"] = translateSector(source.get("sector", ""))
         source["rank"] = "primary"
         articles.append(source)
 
@@ -264,6 +265,7 @@ def buildArticles(res_c: dict, top3_sectors: list, doc_ids: list,
             source = h.get("_source", {})
             doc_id = h.get("_id") or source.get("doc_id")
             source["url"]  = _fetchUrl(es, doc_id)
+            source["sector"] = translateSector(source.get("sector", ""))
             source["rank"] = "secondary"
             articles.append(source)
 

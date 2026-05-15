@@ -31,7 +31,7 @@
     <div class="panel" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; padding:16px 22px; gap:12px; margin-top: 16px; margin-bottom:20px;">
       <div>
         <div style="font-size:18px; font-weight:900; color:var(--navy);"><i class="fas fa-fire-flame-curved" style="color:var(--teal); margin-right:8px;"></i>급등 기사 성향 분석</div>
-        <div style="font-size:12px; color:var(--sub); margin-top:3px;">섹터별 평소 대비 오늘 긍·부정률 변화</div>
+        <div style="font-size:12px; color:var(--sub); margin-top:3px;">섹터별 평소 대비 오늘 긍정률 변화</div>
       </div>
       <div style="display:flex; gap:8px; background:rgba(255,255,255,.8); padding:6px; border-radius:var(--rlg);">
         <button id="hsBtnDom" class="hs-btn hs-active"><i class="fas fa-chart-simple" style="margin-right:6px;"></i>국내</button>
@@ -56,7 +56,6 @@
             <div class="senti-bars">
               <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-smile" style="color:var(--pos);margin-right:5px;"></i>긍정 비율</span><span id="krPosVal" style="color:var(--pos);font-weight:800;">62%</span></div><div class="bar-track"><div class="bar-fill fill-pos" id="krPosBar" data-w="62"></div></div></div>
               <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-frown" style="color:var(--neg);margin-right:5px;"></i>부정 비율</span><span id="krNegVal" style="color:var(--neg);font-weight:800;">18%</span></div><div class="bar-track"><div class="bar-fill fill-neg" id="krNegBar" data-w="18"></div></div></div>
-              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-meh" style="color:var(--neu);margin-right:5px;"></i>중립 비율</span><span id="krNeuVal" style="color:var(--neu);font-weight:800;">20%</span></div><div class="bar-track"><div class="bar-fill fill-neu" id="krNeuBar" data-w="20"></div></div></div>
             </div>
             <div class="kw-cloud" id="krKwCloud"></div>
           </div>
@@ -68,7 +67,6 @@
             <h4 id="krNewsTitle"><i class="fas fa-fire"></i>🔥 급등 핫토픽 기사 분석</h4>
             <div id="krNewsList"></div>
           </div>
-          <div class="subnote"><i class="fas fa-chart-simple" style="margin-right:5px;"></i>국내 급등 기사 성향지수 강세 / AI·반도체 테마 주도 (최근 24h +42%)</div>
         </div>
       </div>
       <div id="ovsPanel" class="panel-card" style="display:none;">
@@ -84,7 +82,6 @@
             <div class="senti-bars">
               <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-smile" style="color:var(--pos);margin-right:5px;"></i>긍정 비율</span><span id="usPosVal" style="color:var(--pos);font-weight:800;">40%</span></div><div class="bar-track"><div class="bar-fill fill-pos" id="usPosBar" data-w="40"></div></div></div>
               <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-frown" style="color:var(--neg);margin-right:5px;"></i>부정 비율</span><span id="usNegVal" style="color:var(--neg);font-weight:800;">35%</span></div><div class="bar-track"><div class="bar-fill fill-neg" id="usNegBar" data-w="35"></div></div></div>
-              <div class="bar-item"><div class="bar-lbl"><span><i class="fas fa-meh" style="color:var(--neu);margin-right:5px;"></i>중립 비율</span><span id="usNeuVal" style="color:var(--neu);font-weight:800;">25%</span></div><div class="bar-track"><div class="bar-fill fill-neu" id="usNeuBar" data-w="25"></div></div></div>
             </div>
             <div class="kw-cloud" id="usKwCloud"></div>
           </div>
@@ -136,9 +133,11 @@ async function fetchSpike(lang) {
 function toSectorStats(sectorChanges) {
   return (sectorChanges || []).map(function(s) {
     return {
-      name : s.sector,
-      usual: Math.round(s.week_avg ? s.week_avg.pos : 0),
-      today: Math.round(s.today ? s.today.pos : 0),
+      name     : s.sector,
+      usual    : Math.round(s.week_avg ? s.week_avg.pos   : 0),
+      today    : Math.round(s.today    ? s.today.pos      : 0),
+      total    : s.today    ? s.today.total               : 0,
+      weekTotal: s.week_avg ? Math.round(s.week_avg.total): 0,
     };
   });
 }
@@ -165,12 +164,11 @@ function toNewsDb(sectorChanges) {
 
 // overall → { score, pos, neg, neu }
 function toOverallScore(overall) {
-  if (!overall) return { score: '0.0', pos: 0, neg: 0, neu: 0 };
+  if (!overall) return { score: '0.0', pos: 0, neg: 0 };
   return {
     score: overall.pos.toFixed(1),
     pos  : Math.round(overall.pos),
     neg  : Math.round(overall.neg),
-    neu  : Math.round(overall.neu),
   };
 }
 
@@ -241,14 +239,31 @@ function renderSectorList(cid, sectors, newsListId, newsTitleId, db, defaultNews
     var d = s.today - s.usual, isPos = d > 0, el = document.createElement('div');
     el.className = 'sect-card';
     el.style.cursor = 'pointer';
-    el.innerHTML = '<div class="sect-name"><strong>' + s.name + '</strong></div>'
-      + '<div class="sect-stats">'
-      + '<span class="stat-pill">📆 평소 ' + s.usual + '%</span>'
-      + '<span class="stat-pill">🔥 오늘 ' + s.today + '%</span>'
-      + '<span class="delta-pill ' + (isPos ? 'delta-pos' : 'delta-neg') + '">'
-      + '<i class="fas fa-arrow-' + (isPos ? 'up' : 'down') + '"></i>'
-      + (isPos ? '+' : '') + Math.abs(d) + '%p&nbsp;<strong>'
-      + (isPos ? '긍정 급등 ▲' : '부정 급등 ▼') + '</strong></span></div>';
+    var todayPos     = s.today;         // 오늘 긍정률
+var weekAvgPos   = s.usual;         // 평소 긍정률
+var todayTotal   = s.total;         // 오늘 기사량
+var weekAvgTotal = s.weekTotal;     // 평소 기사량 (7일 평균)
+var posStatus    = todayPos > 50 ? '긍정' : todayPos < 50 ? '부정' : '중립';
+var posColor     = todayPos > 50 ? 'var(--pos)' : todayPos < 50 ? 'var(--neg)' : 'var(--sub)';
+var posChange    = todayPos - weekAvgPos;
+var posIcon      = posChange >= 0 ? '▲' : '▼';
+var posChangeColor = posChange >= 0 ? 'var(--pos)' : 'var(--neg)';
+
+el.innerHTML =
+  // 1행: 섹터명 + 기사량
+  '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+  + '<strong style="font-size:14px;color:var(--navy);">' + s.name + '</strong>'
+  + '<span style="font-size:11px;color:var(--sub);">📰 평소 ' + weekAvgTotal + '건 → 오늘 ' + todayTotal + '건</span>'
+  + '</div>'
+  // 2행: 기존 pill 구조 유지
+  + '<div class="sect-stats">'
+  + '<span class="stat-pill">평소 긍정률' + weekAvgPos + '%</span>'
+  + '<span class="stat-pill">오늘 긍정률' + todayPos + '%</span>'
+  + '<span class="delta-pill ' + (posChange >= 0 ? 'delta-pos' : 'delta-neg') + '">'
+  + '<i class="fas fa-arrow-' + (posChange >= 0 ? 'up' : 'down') + '"></i>'
+  + (posChange >= 0 ? '+' : '') + posChange.toFixed(1) + '%p&nbsp;<strong>'
+  + (posChange >= 0 ? '▲' : '▼') + '</strong></span>'
+  + '</div>';
     el.addEventListener('click', function() {
       if (selectedName === s.name) {
         selectedName = null;
@@ -269,17 +284,17 @@ function renderSectorList(cid, sectors, newsListId, newsTitleId, db, defaultNews
 // ================================================================
 // 기존 _updateScore 유지
 // ================================================================
-function _updateScore(ids, label, score, pos, neg, neu, name) {
+function _updateScore(ids, label, score, pos, neg, name) {
   var numEl=document.getElementById(ids.score), posVal=document.getElementById(ids.posVal),
-      negVal=document.getElementById(ids.negVal), neuVal=document.getElementById(ids.neuVal),
+      negVal=document.getElementById(ids.negVal),
       posBar=document.getElementById(ids.posBar), negBar=document.getElementById(ids.negBar),
-      neuBar=document.getElementById(ids.neuBar), kwLbl=document.getElementById(ids.label);
+      kwLbl=document.getElementById(ids.label);
   if(!numEl) return;
   numEl.style.transition='opacity .15s'; numEl.style.opacity='0';
   setTimeout(function(){ numEl.textContent=score; numEl.style.opacity='1'; },130);
-  posBar.style.width='0'; negBar.style.width='0'; neuBar.style.width='0';
-  posVal.textContent=pos+'%'; negVal.textContent=neg+'%'; neuVal.textContent=neu+'%';
-  setTimeout(function(){ posBar.style.width=pos+'%'; negBar.style.width=neg+'%'; neuBar.style.width=neu+'%'; },30);
+  posBar.style.width='0'; negBar.style.width='0';
+  posVal.textContent=pos+'%'; negVal.textContent=neg+'%';
+  setTimeout(function(){ posBar.style.width=pos+'%'; negBar.style.width=neg+'%'; },30);
   if(kwLbl){
     var allIcons={
       '종합':'fas fa-chart-pie','반도체':'fas fa-microchip','2차전지':'fas fa-car-battery',
@@ -312,10 +327,9 @@ async function renderPanel(lang, prefix, newsLabel) {
 
   var IDS = {
     score: prefix+'ScoreNum', posVal: prefix+'PosVal', negVal: prefix+'NegVal',
-    neuVal: prefix+'NeuVal',  posBar: prefix+'PosBar', negBar: prefix+'NegBar',
-    neuBar: prefix+'NeuBar',  label:  prefix+'KwLabel',
+    posBar: prefix+'PosBar',  negBar: prefix+'NegBar', label:  prefix+'KwLabel',
   };
-  var DEF = { score: overall.score, pos: overall.pos, neg: overall.neg, neu: overall.neu };
+  var DEF = { score: overall.score, pos: overall.pos, neg: overall.neg };
 
   // 섹터 카드 + 기사 렌더
   renderSectorList(prefix+'SectorGrid', sectors, prefix+'NewsList', prefix+'NewsTitle', newsDb, newsLabel);
@@ -335,18 +349,18 @@ async function renderPanel(lang, prefix, newsLabel) {
         kwContainer.querySelectorAll('.kw-tag').forEach(function(t){ t.classList.remove('kw-selected'); });
         tag.classList.add('kw-selected');
         _updateScore(IDS, tag.innerText.trim(), tag.dataset.score,
-          parseInt(tag.dataset.pos), parseInt(tag.dataset.neg), parseInt(tag.dataset.neu), tag.innerText.trim());
+          parseInt(tag.dataset.pos), parseInt(tag.dataset.neg), tag.innerText.trim());
       });
       tag.addEventListener('mouseleave', function() {
         tag.classList.remove('kw-selected');
-        _updateScore(IDS, '종합', DEF.score, DEF.pos, DEF.neg, DEF.neu, '종합');
+        _updateScore(IDS, '종합', DEF.score, DEF.pos, DEF.neg, '종합');
       });
     });
   }
 
   // 종합 점수 초기 렌더
   setTimeout(function() {
-    _updateScore(IDS, '종합', overall.score, overall.pos, overall.neg, overall.neu, '종합');
+    _updateScore(IDS, '종합', overall.score, overall.pos, overall.neg, '종합');
   }, 100);
 }
 

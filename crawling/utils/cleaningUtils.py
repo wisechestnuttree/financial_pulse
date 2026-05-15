@@ -1,30 +1,11 @@
-# 주석만 수정. (05.12)
 import re
 
+
 class NewsCleaner:
-    """
-    미국 뉴스(영어) 전용 클리너
-
-    [개선 사항]
-    - 정규식 패턴 플래그 통일 (IGNORECASE | MULTILINE)
-    - isValid() 검증 로직 강화
-
-    [목적]
-    - 크롤링된 원문에서 광고, 기자 정보, 저작권 문구 등 노이즈 제거
-    - ML 모델 학습/분석에 사용할 고품질 텍스트 생성
-
-    [효과]
-    - 노이즈가 제거된 텍스트로 ML 분석 정확도 향상
-    - 불필요한 데이터가 ES에 적재되는 것을 사전 차단
-    """
+    """미국 뉴스(영어) 전용 클리너 - 한글 광고 및 정크 완전 차단 (강화판)"""
 
     @staticmethod
     def clean(text):
-        """
-        영어 뉴스 텍스트 정제
-        - HTML 태그, URL, 광고, 기자 정보 등 노이즈 제거
-        - 특수문자 정리 및 공백 정규화
-        """
         if not text: return ""
 
         # 1. HTML 태그 및 URL 제거 (기존 유지)
@@ -72,20 +53,8 @@ class NewsCleaner:
         return text
 
     @staticmethod
-    def isValid(text, title=""):
-        """
-        영어 뉴스 품질 검증
-
-        [검증 기준]
-        1. 불필요한 콘텐츠 유형 필터링 (transcript, earnings call 등)
-        2. 본문 길이 250자 이상
-        3. 영문 알파벳 비중 70% 이상
-
-        [목적]
-        - ML 분석에 부적합한 저품질 텍스트 사전 차단
-        - ES에 불필요한 데이터가 적재되는 것을 방지
-        """
-        # 불필요한 콘텐츠 유형 필터링
+    def is_valid(text, title=""):
+        # 서비스용 품질 검사 (기존 유지)
         stop_words = ["transcript", "earnings call", "live blog", "full text"]
         combined = (title + " " + (text if text else "")).lower()
         if any(word in combined for word in stop_words): return False
@@ -101,33 +70,10 @@ class NewsCleaner:
 
 
 class KoNewsCleaner:
-    """
-    한국 뉴스 전용 클리너
-
-    [개선 사항]
-    - 정규식 오류 수정 (잘못된 따옴표 패턴 수정)
-    - 기존: r'유튜브 채널\s?'.*?'' → 개선: r"유튜브 채널\s?'.*?'"
-
-    [개선 이유]
-    - 기존 코드의 따옴표 혼용으로 정규식이 의도대로 동작하지 않음
-    - 유튜브 채널 유도 문구가 제거되지 않아 노이즈로 남을 수 있음
-
-    [목적]
-    - 한국 뉴스 특유의 광고, 기자 정보, 저작권 문구 제거
-    - ML 분석용 고품질 텍스트 생성
-
-    [효과]
-    - 정규식 오류 수정으로 클리닝 정확도 향상
-    - 유튜브 채널 유도 문구가 올바르게 제거됨
-    """
+    """한국 뉴스 전용 클리너 (광고 및 기자정보 강력 제거)"""
 
     @staticmethod
     def clean(text):
-        """
-        한국 뉴스 텍스트 정제
-        - HTML 태그, URL, 광고, 기자 정보 등 노이즈 제거
-        - 특수문자 정리 및 공백 정규화
-        """
         if not text: return ""
 
         # 1. HTML 태그 및 URL 제거
@@ -177,18 +123,8 @@ class KoNewsCleaner:
         return text
 
     @staticmethod
-    def isValid(text, title=""):
-        """
-        한국 뉴스 품질 검증
-
-        [검증 기준]
-        1. 불필요한 콘텐츠 유형 필터링 (생중계, 포토뉴스 등)
-        2. 본문 길이 150자 이상 (한국어는 압축도가 높아 250자보다 낮게 설정)
-        3. 본문 길이 15000자 이하 (너무 긴 기사 제외)
-
-        [목적]
-        - ML 분석에 부적합한 저품질 텍스트 사전 차단
-        """
+    def is_valid(text, title=""):
+        # 한국어 전용 거름망 (생중계, 포토뉴스 등 제외)
         stop_words = ["생중계", "포토", "영상", "부고", "인사", "오늘의 운세", "녹취록"]
         combined = (title + " " + (text if text else "")).lower()
         if any(word in combined for word in stop_words): return False

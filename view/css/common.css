@@ -909,7 +909,12 @@
   background: linear-gradient(180deg, var(--teal), #009E96);
   border-radius: 10px;
 }
-
+/* 주간 트렌드 & 키워드 네트워크 패널 높이 500px */
+.trend-container,
+.net-container {
+    min-height: 500px;
+    height: 500px;
+}
 /* (선택사항) 계기판과 네트워크 캔버스 영역 높이 안정화 */
 .canvas-container {
   min-height: 280px;

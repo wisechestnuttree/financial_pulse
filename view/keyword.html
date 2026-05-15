@@ -143,7 +143,7 @@
     .nf-reset:hover { background: #f0f4f8; border-color: var(--teal); color: var(--teal); box-shadow: 0 2px 8px rgba(0,181,173,0.15); }
 
     /* 최신 뉴스 하단 */
-    .news-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; }
+    .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
     .news-card { border: 1px solid #eef2f8; border-radius: 16px; overflow: hidden; transition: 0.3s; cursor: pointer; background: #fff; }
     .news-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(13,31,60,0.08); border-color: var(--teal); }
     .news-img { width: 100%; height: 120px; object-fit: cover; }
@@ -354,6 +354,17 @@
   color: var(--teal);
   margin-right: 0;
 }
+/* 주간 트렌드 & 키워드 네트워크 패널 높이 500px (강제 적용) */
+.trend-container,
+.net-container {
+    min-height: 500px !important;
+    height: 500px !important;
+}
+
+/* 계기판 캔버스 컨테이너는 280px 유지 (기본값과 동일하지만 명시적으로) */
+.canvas-container {
+    height: 280px;
+}
   </style>
 </head>
 <body>
@@ -499,124 +510,291 @@ function toKwData(d) {
 // 주간 트렌드 라인 차트 — API weekly_trend 데이터 사용
 // ================================================================
 function drawSmoothLineChartFromApi(cid, weeklyTrend) {
-  const cvs = document.getElementById(cid);
-  if (!cvs) return;
-  const ctx = cvs.getContext('2d');
-  cvs.width  = cvs.parentElement.clientWidth;
-  cvs.height = cvs.parentElement.clientHeight;
-  const w = cvs.width, h = cvs.height;
-  if (w === 0 || h === 0) return;
+  const canvas = document.getElementById(cid);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
 
-  if (!weeklyTrend || !weeklyTrend.lines || !weeklyTrend.lines.length) {
-    ctx.fillStyle = '#a0aec0';
-    ctx.font = '12px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('데이터 없음', w / 2, h / 2);
-    return;
-  }
+  const margin = { top: 40, right: 30, bottom: 80, left: 50 };
+  let width, height;
 
-  const px = 36, py = 20, pb = 36;
-  const COLORS = ['#8c7ae6', '#00b894', '#f1c40f', '#e17055', '#74b9ff'];
-  const dates   = weeklyTrend.dates || [];
-  const lines   = weeklyTrend.lines.slice(0, 5);
-  const allVals = lines.flatMap(l => l.data);
-  const maxVal  = Math.max(...allVals, 1);
+  const SHOW_VALUES = true;
 
-  const series = lines.map((line, i) => ({
-    name  : line.keyword,
-    color : COLORS[i % COLORS.length],
-    pts   : line.data.map((val, di) => ({
-      x    : px + ((w - px - 10) / Math.max(dates.length - 1, 1)) * di,
-      y    : h - pb - ((val / maxVal) * (h - py - pb)),
-      val  : val,
-      label: dates[di] || '',
-    })),
-  }));
+  // 무지개 색상 팔레트
+  const COLOR_PALETTE = [
+    '#FF3B30', '#FF9500', '#5AC8FA', '#34C759', '#FFCC00',
+    '#007AFF', '#AF52DE', '#FF2D55', '#FF9F0A', '#30B0C0',
+    '#E5B8FF', '#FF6B6B'
+  ];
 
-  function roundRectPath(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
+  // Y축 눈금 개수 (자동 생성)
+  const Y_TICK_COUNT = 5;
 
-  function redraw(hoverSeries, hoverIdx) {
-    ctx.clearRect(0, 0, w, h);
-    ctx.textAlign = 'right'; ctx.fillStyle = '#a0aec0'; ctx.font = '10px sans-serif';
-    for (let i = 0; i <= 4; i++) {
-      const y = h - pb - ((h - py - pb) * i / 4);
-      ctx.beginPath(); ctx.moveTo(px, y); ctx.lineTo(w - 10, y);
-      ctx.strokeStyle = '#f0f4f8'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillText(Math.round(maxVal * i / 4), px - 4, y + 3);
+  function resizeAndDraw() {
+    const container = canvas.parentElement;
+    width = container.clientWidth;
+    height = 500;
+    canvas.width = width;
+    canvas.height = height;
+
+    if (!weeklyTrend || !weeklyTrend.lines || !weeklyTrend.lines.length) {
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#a0aec0';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('데이터 없음', width / 2, height / 2);
+      return;
     }
-    ctx.textAlign = 'center'; ctx.fillStyle = '#a0aec0'; ctx.font = '9px sans-serif';
-    dates.forEach((d, i) => {
-      if (series[0] && series[0].pts[i]) ctx.fillText(d.slice(5), series[0].pts[i].x, h - 8);
-    });
-    series.forEach(({ pts, color, name }) => {
-      if (!pts.length) return;
-      ctx.beginPath(); ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.lineJoin = 'round';
-      ctx.moveTo(pts[0].x, pts[0].y);
-      for (let i = 0; i < pts.length - 1; i++) {
-        const xc = (pts[i].x + pts[i + 1].x) / 2, yc = (pts[i].y + pts[i + 1].y) / 2;
-        ctx.quadraticCurveTo(pts[i].x, pts[i].y, xc, yc);
-      }
-      ctx.lineTo(pts[pts.length - 1].x, pts[pts.length - 1].y);
-      ctx.stroke();
-      pts.forEach((p, i) => {
-        const isHov = (hoverSeries === name && hoverIdx === i);
-        ctx.beginPath(); ctx.arc(p.x, p.y, isHov ? 6 : 4, 0, Math.PI * 2);
-        ctx.fillStyle = isHov ? color : '#fff'; ctx.fill();
-        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+
+    const dates = weeklyTrend.dates || [];
+    const lines = weeklyTrend.lines.slice(0, 4);
+    const chartWidth = width - margin.left - margin.right;
+    const chartHeight = height - margin.top - margin.bottom;
+    const xStep = chartWidth / Math.max(dates.length - 1, 1);
+
+    // ========== Y축 자동 범위 계산 ==========
+    let allValues = lines.flatMap(l => l.data).filter(v => v !== undefined && !isNaN(v));
+    if (allValues.length === 0) allValues = [0];
+    const dataMin = Math.min(...allValues);
+    const dataMax = Math.max(...allValues);
+    const range = dataMax - dataMin;
+
+    // 여백: 데이터 범위의 10%를 위아래에 추가 (최소 5% 보장)
+    let yMin = dataMin - range * 0.1;
+    let yMax = dataMax + range * 0.1;
+
+    // 0 근처 데이터가 있을 경우 0을 포함하도록 조정 (음수 방지)
+    if (dataMin > 0 && dataMin < range * 0.2) yMin = 0;
+    if (dataMax < 0) yMax = 0;
+
+    // 최소/최대값이 같으면 범위 강제 확장
+    if (Math.abs(yMax - yMin) < 0.1) {
+      yMin = yMin - 10;
+      yMax = yMax + 10;
+    }
+
+    // Y축 눈금 생성 (균등 간격)
+    const yStep = (yMax - yMin) / Y_TICK_COUNT;
+    const yTickValues = [];
+    for (let i = 0; i <= Y_TICK_COUNT; i++) {
+      yTickValues.push(yMin + i * yStep);
+    }
+
+    // 각 라인의 포인트 계산
+    const series = lines.map((line, idx) => {
+      const color = COLOR_PALETTE[idx % COLOR_PALETTE.length];
+      const points = line.data.map((val, i) => {
+        // Y 좌표 계산 (자동 범위 기준)
+        let y = margin.top + chartHeight - ((val - yMin) / (yMax - yMin)) * chartHeight;
+        // 범위 밖의 값은 살짝 클리핑 (화면 밖으로 나가지 않도록)
+        y = Math.min(Math.max(y, margin.top), margin.top + chartHeight);
+        return {
+          x: margin.left + i * xStep,
+          y: y,
+          val: val,
+          label: dates[i] || '',
+        };
       });
+      return { name: line.keyword, color, points };
     });
-    series.forEach(({ color, name }, i) => {
-      const lx = px + i * 80, ly = py - 4;
-      ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI * 2);
-      ctx.fillStyle = color; ctx.fill();
-      ctx.textAlign = 'left'; ctx.fillStyle = '#6B7FA3'; ctx.font = '700 10px sans-serif';
-      ctx.fillText(name, lx + 8, ly + 4);
-    });
-    if (hoverSeries !== null && hoverIdx !== null) {
-      const s = series.find(s => s.name === hoverSeries);
-      if (!s || !s.pts[hoverIdx]) return;
-      const p = s.pts[hoverIdx];
-      const tx = Math.min(Math.max(p.x, 60), w - 70), ty = p.y - 14;
-      ctx.beginPath(); ctx.moveTo(p.x, py); ctx.lineTo(p.x, h - pb);
-      ctx.strokeStyle = 'rgba(13,31,60,0.08)'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.stroke(); ctx.setLineDash([]);
-      const label = `${s.name}  ${p.label}  ${p.val}`;
-      ctx.font = '700 11px "Noto Sans KR",sans-serif';
-      const tw = ctx.measureText(label).width + 20, th = 26;
-      const bx = tx - tw / 2, by = ty - th;
-      ctx.fillStyle = '#1A2A4A'; ctx.shadowColor = 'rgba(13,31,60,.15)'; ctx.shadowBlur = 8;
-      roundRectPath(ctx, bx, by, tw, th, 7);
-      ctx.fill(); ctx.shadowBlur = 0;
-      ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(label, tx, by + th / 2); ctx.textBaseline = 'alphabetic';
+
+    let hoveredSeries = null;
+    let hoveredIndex = null;
+
+    function drawAnnotations(s) {
+      if (!SHOW_VALUES) return;
+      s.points.forEach(p => {
+        if (p.val === undefined) return;
+        ctx.font = 'bold 10px "Noto Sans KR", sans-serif';
+        ctx.fillStyle = s.color;
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center';
+        ctx.fillText(p.val, p.x, p.y - 8);
+      });
     }
+
+    function draw() {
+      ctx.clearRect(0, 0, width, height);
+      ctx.save();
+
+      // 흰색 배경
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      // Y축 그리드 및 눈금 (자동 범위)
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 1;
+      ctx.font = '10px "Noto Sans KR", sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.textAlign = 'right';
+      for (let i = 0; i < yTickValues.length; i++) {
+        const val = yTickValues[i];
+        const y = margin.top + chartHeight - ((val - yMin) / (yMax - yMin)) * chartHeight;
+        ctx.beginPath();
+        ctx.moveTo(margin.left, y);
+        ctx.lineTo(width - margin.right, y);
+        ctx.stroke();
+        ctx.fillText(Math.round(val * 10) / 10, margin.left - 8, y + 3);
+      }
+
+      // X축 날짜 라벨
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#475569';
+      ctx.font = '9px "Noto Sans KR", sans-serif';
+      dates.forEach((d, i) => {
+        const x = margin.left + i * xStep;
+        ctx.fillText(d.slice(5), x, height - margin.bottom + 15);
+      });
+
+      // 축 경계선
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, height - margin.bottom);
+      ctx.lineTo(width - margin.right, height - margin.bottom);
+      ctx.stroke();
+
+      // 라인 & 마커
+      series.forEach(s => {
+        const isHover = (hoveredSeries === s.name);
+        ctx.beginPath();
+        ctx.lineWidth = isHover ? 4 : 2.5;
+        ctx.strokeStyle = s.color;
+        ctx.lineJoin = 'round';
+        ctx.lineCap = 'round';
+        if (s.points.length === 0) return;
+        ctx.moveTo(s.points[0].x, s.points[0].y);
+        for (let i = 0; i < s.points.length - 1; i++) {
+          const p1 = s.points[i];
+          const p2 = s.points[i + 1];
+          const cp1x = p1.x + (p2.x - p1.x) / 3;
+          const cp1y = p1.y;
+          const cp2x = p2.x - (p2.x - p1.x) / 3;
+          const cp2y = p2.y;
+          ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+        }
+        ctx.stroke();
+
+        s.points.forEach((p, i) => {
+          const isHoverPoint = (isHover && hoveredIndex === i);
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, isHoverPoint ? 8 : 5, 0, Math.PI * 2);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+          ctx.strokeStyle = s.color;
+          ctx.lineWidth = isHoverPoint ? 2.5 : 2;
+          ctx.stroke();
+          if (isHoverPoint) {
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 12, 0, Math.PI * 2);
+            ctx.fillStyle = `${s.color}30`;
+            ctx.fill();
+          }
+        });
+
+        drawAnnotations(s);
+      });
+
+      // 레전드 (하단 중앙)
+      const legendItems = series.map(s => ({ name: s.name, color: s.color }));
+      const itemWidth = 95;
+      const itemHeight = 20;
+      const itemsPerRow = Math.floor((width - margin.left - margin.right) / itemWidth);
+      const rows = Math.ceil(legendItems.length / itemsPerRow);
+      const legendTop = height - margin.bottom + 30;
+      const legendStartX = margin.left + (chartWidth - (itemsPerRow * itemWidth)) / 2;
+
+      ctx.font = '10px "Noto Sans KR", sans-serif';
+      ctx.textAlign = 'left';
+      for (let i = 0; i < legendItems.length; i++) {
+        const row = Math.floor(i / itemsPerRow);
+        const col = i % itemsPerRow;
+        const x = legendStartX + col * itemWidth;
+        const y = legendTop + row * (itemHeight + 5);
+        ctx.fillStyle = legendItems[i].color;
+        ctx.fillRect(x, y - 12, 12, 12);
+        ctx.fillStyle = '#1e293b';
+        ctx.fillText(legendItems[i].name, x + 16, y);
+      }
+
+      // 호버 툴팁
+      if (hoveredSeries && hoveredIndex !== null) {
+        const s = series.find(s => s.name === hoveredSeries);
+        if (s && s.points[hoveredIndex]) {
+          const p = s.points[hoveredIndex];
+          const tipText = `${s.name}  ${p.label}  ${p.val}`;
+          ctx.font = 'bold 11px "Noto Sans KR", sans-serif';
+          const textWidth = ctx.measureText(tipText).width;
+          const tipWidth = textWidth + 20;
+          const tipHeight = 28;
+          let tipX = p.x - tipWidth / 2;
+          let tipY = p.y - tipHeight - 8;
+          if (tipX < margin.left) tipX = margin.left;
+          if (tipX + tipWidth > width - margin.right) tipX = width - margin.right - tipWidth;
+          if (tipY < margin.top) tipY = p.y + 12;
+          ctx.fillStyle = '#1e293b';
+          ctx.shadowBlur = 4;
+          ctx.fillRect(tipX, tipY, tipWidth, tipHeight);
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.fillText(tipText, tipX + tipWidth / 2, tipY + 18);
+        }
+      }
+      ctx.restore();
+    }
+
+    // 마우스 인터랙션
+    function handleMouseMove(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mouseX = (e.clientX - rect.left) * scaleX;
+      const mouseY = (e.clientY - rect.top) * scaleY;
+      let found = null;
+      for (const s of series) {
+        for (let i = 0; i < s.points.length; i++) {
+          const p = s.points[i];
+          if (Math.hypot(mouseX - p.x, mouseY - p.y) < 15) {
+            found = { name: s.name, idx: i };
+            break;
+          }
+        }
+        if (found) break;
+      }
+      if (found) {
+        canvas.style.cursor = 'crosshair';
+        hoveredSeries = found.name;
+        hoveredIndex = found.idx;
+        draw();
+      } else {
+        canvas.style.cursor = 'default';
+        hoveredSeries = null;
+        hoveredIndex = null;
+        draw();
+      }
+    }
+
+    canvas.removeEventListener('mousemove', handleMouseMove);
+    canvas.removeEventListener('mouseleave', () => {});
+    canvas.addEventListener('mousemove', handleMouseMove);
+    canvas.addEventListener('mouseleave', () => {
+      canvas.style.cursor = 'default';
+      hoveredSeries = null;
+      hoveredIndex = null;
+      draw();
+    });
+
+    draw();
   }
-  redraw(null, null);
-  cvs.onmousemove = (e) => {
-    const rect = cvs.getBoundingClientRect();
-    const mx = (e.clientX - rect.left) * (w / rect.width), my = (e.clientY - rect.top) * (h / rect.height);
-    let found = null;
-    series.forEach(({ pts, name }) => { pts.forEach((p, i) => { if (Math.hypot(mx - p.x, my - p.y) < 14) found = { name, i }; }); });
-    if (found) { cvs.style.cursor = 'crosshair'; redraw(found.name, found.i); }
-    else { cvs.style.cursor = 'default'; redraw(null, null); }
-  };
-  cvs.onmouseleave = () => { cvs.style.cursor = 'default'; redraw(null, null); };
+
+  window.addEventListener('resize', resizeAndDraw);
+  resizeAndDraw();
 }
 
 // ================================================================
 // 키워드 네트워크 — API keyword_network 데이터 사용
 // ================================================================
 function drawNetworkFromApi(cid, netWrapId, networkData) {
+  console.log('drawNetworkFromApi 실행됨');
   const cvs     = document.getElementById(cid);
   const netWrap = document.getElementById(netWrapId);
   if (!cvs || !netWrap) return;
@@ -695,13 +873,19 @@ function drawNetworkFromApi(cid, netWrapId, networkData) {
       const isHeld   = (holding === nd);
       if (isHeld) { ctx.beginPath(); ctx.arc(nd.x, nd.y, nd.r + 6, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,181,173,0.2)'; ctx.fill(); }
       const rank = nd.rank || 4;
-      const hue  = 30 + (Math.min(rank, 7) - 1) * 5;
+      let hash = 0;
+      for (let i = 0; i < nd.id.length; i++) {
+        hash = ((hash << 5) - hash) + nd.id.charCodeAt(i);
+        hash |= 0;
+      }
+      const hue = Math.abs(hash % 360);
+      
       const lght = 55 + (Math.min(rank, 7) - 1) * 2.5;
       let mc = isActive ? `hsl(${hue},100%,${lght}%)` : '#dddddd';
       let lc = isActive ? `hsl(${hue},100%,${lght + 15}%)` : '#eeeeee';
       let dc = isActive ? `hsl(${hue},100%,${lght - 15}%)` : '#bbbbbb';
       const grad = ctx.createRadialGradient(nd.x - nd.r * 0.3, nd.y - nd.r * 0.3, nd.r * 0.2, nd.x, nd.y, nd.r);
-      grad.addColorStop(0, lc); grad.addColorStop(1, dc);
+      grad.addColorStop(0, lc); grad.addColorStop(1, dc);ctx.fillStyle = grad;
       ctx.beginPath(); ctx.arc(nd.x, nd.y, nd.r, 0, Math.PI * 2); ctx.fillStyle = grad; ctx.fill();
       if (isHeld) { ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2.5; ctx.stroke(); }
       ctx.beginPath(); ctx.arc(nd.x - nd.r * 0.35, nd.y - nd.r * 0.35, nd.r * 0.2, 0, Math.PI * 2);
@@ -773,10 +957,10 @@ async function renderLayout() {
 // ================================================================
 async function buildDashboard(code, isSplit, apiData) {
   const kwList  = toKwData(apiData);
-  const dataList = isSplit ? kwList.slice(0, 5) : kwList;
+  const dataList = isSplit ? kwList.slice(0, 7) : kwList;
   const flag     = code === 'kr' ? '🇰🇷 KR 국내' : '🌐 해외';
   const topTitle = isSplit
-    ? `${flag} 실시간 Top 5`
+    ? `${flag} 실시간 Top 7`
     : '<i class="fas fa-clock"></i> 오늘의 키워드 Top7';
 
   const sec = document.createElement('section');
@@ -784,7 +968,7 @@ async function buildDashboard(code, isSplit, apiData) {
   sec.innerHTML = `
     <div class="dashboard-top-grid">
       <div class="panel">
-        <div class="panel-hdr">${topTitle}</div>
+        <div class="panel-hdr"><div class="hdr-left">${topTitle}</div></div>
         <div class="keyword-list" id="list_${code}"></div>
       </div>
       <div class="panel">
@@ -799,11 +983,11 @@ async function buildDashboard(code, isSplit, apiData) {
     <div class="dashboard-mid-grid">
       <div class="panel">
         <div class="panel-hdr"><div class="hdr-left"><i class="fas fa-chart-line"></i>주요 키워드 주간 트렌드</div></div>
-        <div class="canvas-container"><canvas id="trend_${code}"></canvas></div>
+        <div class="canvas-container trend-container"><canvas id="trend_${code}"></canvas></div>
       </div>
       <div class="panel">
         <div class="panel-hdr"><div class="hdr-left"><i class="fas fa-share-alt"></i> 키워드 네트워크</div><span style="font-size:11px;font-weight:700;color:var(--sub);">드래그 가능</span></div>
-        <div class="canvas-container" id="netWrap_${code}"><canvas id="net_${code}"></canvas></div>
+        <div class="canvas-container net-container" id="netWrap_${code}"><canvas id="net_${code}"></canvas></div>
       </div>
     </div>
   `;
@@ -860,66 +1044,141 @@ async function buildDashboard(code, isSplit, apiData) {
 // 연관 강도 계기판 — 기존 함수 유지 (item.stats 사용)
 // ================================================================
 function updateGauge(code, item) {
-  document.getElementById(`gtitle_${code}`).innerText = item.name;
-  document.getElementById(`gdesc_${code}`).innerText  = `📰 주간 누적: ${item.total}건`;
+  const titleEl = document.getElementById(`gtitle_${code}`);
+  const descEl = document.getElementById(`gdesc_${code}`);
+  if (titleEl) titleEl.innerText = item.name;
+  if (descEl) descEl.innerText = `📰 주간 누적: ${item.total}건`;
+
   const canvas = document.getElementById(`gauge_${code}`);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
-  if (!canvas._gaugeInited) {
-    canvas.width = canvas.parentElement.clientWidth;
-    canvas.height = canvas.parentElement.clientHeight;
-    canvas._gaugeInited = true;
-  }
+
+  const container = canvas.parentElement;
+  canvas.width = container.clientWidth;
+  canvas.height = container.clientHeight;
+  if (canvas.width === 0 || canvas.height === 0) return;
+
   const w = canvas.width, h = canvas.height;
   const cx = w / 2, cy = h - 18;
-  const r  = Math.min(cx, cy) * 0.80;
+  const r = Math.min(cx, cy) * 0.80;
   const start = Math.PI, end = 2 * Math.PI;
-  const totalAng = end - start, segAng = totalAng / 3;
+  const totalAng = end - start;
+
+  // 배경 반원
   ctx.clearRect(0, 0, w, h);
-  ctx.beginPath(); ctx.arc(cx, cy, r, start, end); ctx.lineTo(cx, cy);
-  ctx.fillStyle = '#f0f6ff'; ctx.fill();
-  ctx.strokeStyle = 'rgba(0,181,173,.2)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, start, end);
+  ctx.lineTo(cx, cy);
+  ctx.fillStyle = "#f0f6ff";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,181,173,.2)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 눈금 (0~100)
   for (let i = 0; i <= 20; i++) {
-    const v = i * 5, ang = start + (v / 100) * totalAng;
-    const major = v % 10 === 0, len = major ? 14 : 8;
-    const x1 = cx + Math.cos(ang) * (r - len), y1 = cy + Math.sin(ang) * (r - len);
-    const x2 = cx + Math.cos(ang) * (r + 4),   y2 = cy + Math.sin(ang) * (r + 4);
+    let v = i * 5;
+    let ang = start + (v / 100) * totalAng;
+    let major = v % 10 === 0;
+    let len = major ? 14 : 8;
+    let x1 = cx + Math.cos(ang) * (r - len);
+    let y1 = cy + Math.sin(ang) * (r - len);
+    let x2 = cx + Math.cos(ang) * (r + 4);
+    let y2 = cy + Math.sin(ang) * (r + 4);
     let rC, gC, bC;
-    if (v < 50) { let t = v / 50; rC = 50 + t * 205; gC = 180 - t * 90; bC = 70 - t * 40; }
-    else { let t = (v - 50) / 50; rC = 255; gC = 90 - t * 60; bC = 30 - t * 20; }
-    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
-    ctx.strokeStyle = `rgb(${Math.floor(rC)},${Math.floor(gC)},${Math.floor(bC)})`;
-    ctx.lineWidth = major ? 2 : 1; ctx.stroke();
+    if (v < 50) {
+      let t = v / 50;
+      rC = 50 + t * 205;
+      gC = 180 - t * 90;
+      bC = 70 - t * 40;
+    } else {
+      let t = (v - 50) / 50;
+      rC = 255;
+      gC = 90 - t * 60;
+      bC = 30 - t * 20;
+    }
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.strokeStyle = `rgb(${Math.floor(rC)}, ${Math.floor(gC)}, ${Math.floor(bC)})`;
+    ctx.lineWidth = major ? 2 : 1;
+    ctx.stroke();
   }
+
+  // stats 데이터 준비
   let statsEntries = Object.entries(item.stats || {});
-  if (statsEntries.length < 3) { const fb = [['연관 키워드', 40], ['트렌드 영향', 30], ['네트워크 연결', 20]]; for (let i = statsEntries.length; i < 3; i++) statsEntries.push(fb[i]); }
-  const sorted    = [...statsEntries].sort((a, b) => b[1] - a[1]);
-  const top3      = sorted.slice(0, 3);
-  const rearranged = top3.length === 3 ? [top3[1], top3[2], top3[0]] : top3;
+  if (statsEntries.length < 3) {
+    const fallbacks = [["연관 키워드", 40], ["트렌드 영향", 30], ["네트워크 연결", 20]];
+    for (let i = statsEntries.length; i < 3 && i < fallbacks.length; i++) statsEntries.push(fallbacks[i]);
+  }
+  const sorted = [...statsEntries].sort((a, b) => b[1] - a[1]);
+  const top3 = sorted.slice(0, 3);
+  // top3 배열을 무작위로 섞음 (Fisher-Yates 셔플)
+  const shuffled = [...top3];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  const rearranged = shuffled.length === 3 ? shuffled : top3;
+  const segAng = totalAng / 3;
+
+  // 3개 영역에 텍스트 표시
   for (let i = 0; i < rearranged.length; i++) {
     const [name, value] = rearranged[i];
     const mid = start + i * segAng + segAng / 2;
-    const tx = cx + Math.cos(mid) * r * 0.62, ty = cy + Math.sin(mid) * r * 0.62;
+    const tx = cx + Math.cos(mid) * r * 0.62;
+    const ty = cy + Math.sin(mid) * r * 0.62;
     let fontSize = Math.min(12, 10 + Math.floor(value / 10));
-    ctx.fillStyle = '#0D1F3C'; ctx.font = `bold ${fontSize}px 'Sora','Noto Sans KR'`;
+    ctx.fillStyle = "#0D1F3C";
+    ctx.font = `bold ${fontSize}px 'Sora', 'Noto Sans KR'`;
     ctx.fillText(name.length > 7 ? name.slice(0, 6) + '..' : name, tx - 15, ty - 8);
-    ctx.font = 'bold 11px Sora'; ctx.fillStyle = '#00B5AD';
+    ctx.font = "bold 11px 'Sora'";
+    ctx.fillStyle = "#00B5AD";
     ctx.fillText(`${Math.round(value)}%`, tx - 12, ty + 12);
   }
-  const highest   = top3[0][1];
-  const needleAng = start + (highest / 100) * totalAng;
-  const needleLen = r * 0.78;
-  const nx = cx + Math.cos(needleAng) * needleLen, ny = cy + Math.sin(needleAng) * needleLen;
-  ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(nx, ny);
-  ctx.strokeStyle = '#C9A227'; ctx.lineWidth = 4; ctx.stroke();
+
+  // needle: 가장 높은 값을 가진 키워드가 위치한 영역의 중앙을 가리킴
+  const highestKeyword = top3[0][0];          // 가장 높은 값의 키워드 이름
+  const targetIndex = rearranged.findIndex(([name]) => name === highestKeyword);
+  // targetIndex가 -1이면 0으로 처리 (안전장치)
+  const idx = targetIndex >= 0 ? targetIndex : 0;
+  const needleAng = start + (idx + 0.5) * segAng;  // 해당 영역의 중앙 각도
+  const needleLen = r * 0.55;
+  const nx = cx + Math.cos(needleAng) * needleLen;
+  const ny = cy + Math.sin(needleAng) * needleLen;
+
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(nx, ny);
+  ctx.strokeStyle = "#C9A227";
+  ctx.lineWidth = 4;
+  ctx.stroke();
+
   const arrowSize = 8;
-  const wx1 = nx - Math.cos(needleAng + 0.5) * arrowSize, wy1 = ny - Math.sin(needleAng + 0.5) * arrowSize;
-  const wx2 = nx - Math.cos(needleAng - 0.5) * arrowSize, wy2 = ny - Math.sin(needleAng - 0.5) * arrowSize;
-  ctx.beginPath(); ctx.moveTo(nx, ny); ctx.lineTo(wx1, wy1); ctx.lineTo(wx2, wy2);
-  ctx.fillStyle = '#C9A227'; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,181,173,.2)'; ctx.fill();
-  ctx.beginPath(); ctx.arc(cx, cy, 9, 0, Math.PI * 2);  ctx.fillStyle = '#00B5AD'; ctx.fill();
-  ctx.fillStyle = '#5A6E8C'; ctx.font = 'bold 10px Sora'; ctx.fillText('강도 ↑', cx + r - 28, cy - 14);
+  const wx1 = nx - Math.cos(needleAng + 0.5) * arrowSize;
+  const wy1 = ny - Math.sin(needleAng + 0.5) * arrowSize;
+  const wx2 = nx - Math.cos(needleAng - 0.5) * arrowSize;
+  const wy2 = ny - Math.sin(needleAng - 0.5) * arrowSize;
+  ctx.beginPath();
+  ctx.moveTo(nx, ny);
+  ctx.lineTo(wx1, wy1);
+  ctx.lineTo(wx2, wy2);
+  ctx.fillStyle = "#C9A227";
+  ctx.fill();
+
+  // 중앙 원
+  ctx.beginPath();
+  ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(0,181,173,.2)";
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+  ctx.fillStyle = "#00B5AD";
+  ctx.fill();
+
+  ctx.fillStyle = "#5A6E8C";
+  ctx.font = "bold 10px 'Sora'";
+  ctx.fillText("강도 ↑", cx + r - 28, cy - 14);
 }
 
 // ================================================================
@@ -932,18 +1191,26 @@ function renderHotNewsPanel(apiData) {
   if (!hotNews.length) return;
 
   const tagMap = { positive: '긍정', negative: '부정', neutral: '중립' };
-  const imgs   = [
-    'https://images.unsplash.com/photo-1517430816045-df4b7de11d1d?auto=format&fit=crop&q=80&w=400&h=200',
-    'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&q=80&w=400&h=200',
-    'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&q=80&w=400&h=200',
-    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=400&h=200',
-  ];
-  newsGrid.innerHTML = hotNews.slice(0, 4).map((h, i) => {
+  const sectorImgMap = {
+    tech: 'tech.png',
+    industry: 'industry.png',
+    consumer: 'consumer.png',
+    bio: 'bio.png',
+    mobility: 'mobility.png',
+    macro_policy: 'macro_policy.png',
+    finance: 'finance.png',
+  };
+  const defaultImg = 'photo/news_default.png';
+
+  newsGrid.innerHTML = hotNews.slice(0, 8).map((h) => {
     const art = h.article || {};
     const tag = art.tendency || 'neutral';
+    const sector = h.sector || '';
+    const imgSrc = sectorImgMap[sector] ? `photo/${sectorImgMap[sector]}` : defaultImg;
     return `
       <a class="news-card" href="${art.url || '#'}" target="_blank" rel="noopener" style="text-decoration:none;">
-        <img class="news-img" src="${imgs[i % imgs.length]}" alt="News">
+        <img class="news-img" src="${imgSrc}" alt="${sector || 'news'}"
+             onerror="this.onerror=null; this.src='photo/news_default.png';">
         <div class="news-content">
           <span class="news-tag">${h.keyword}</span>
           <div class="news-title">${art.title || h.keyword + ' 관련 기사'}</div>

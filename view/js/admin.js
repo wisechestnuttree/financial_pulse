@@ -84,7 +84,7 @@ function _filterLogs(logs, level, subject, keyword, from, to){
   });
 }
 
-// 로그 통계 계산
+// 로그 통계 계산 
 function _calcStats(logs){
   const total = logs.length;
   const byLevel = {INFO:0,WARN:0,ERROR:0,DEBUG:0,SUCCESS:0};
@@ -300,7 +300,7 @@ function _renderCrawlerPage() {
   const main = document.getElementById('admMain');
   const crawlLogs = _filterLogs(_admLogs, 'ALL', '크롤링', '', '', '');
   const stats = _calcStats(crawlLogs);
-
+  
   main.innerHTML = `
     <h2 style="font-size:20px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;">
       <i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 스케줄러 관리
@@ -336,7 +336,7 @@ function _renderCrawlerPage() {
       </div>
     </div>
   `;
-
+  
   const retryBtn = document.getElementById('openErrorRetryBtn');
   if (retryBtn) {
     retryBtn.addEventListener('click', openErrorRetryModal);
@@ -473,7 +473,7 @@ function showRecollectConfirmModal(missingCount, indexName) {
   const modal = document.getElementById('recollectConfirmModal');
   const msgSpan = document.getElementById('recollectMessage');
   msgSpan.innerText = `누락 ${missingCount}건 재수집을 시작하시겠습니까?\n인덱스: ${indexName}`;
-
+  
   // 확인 버튼 이벤트 (기존 리스너 제거 후 재등록)
   const confirmBtn = document.getElementById('recollectConfirmBtn');
   const newConfirm = confirmBtn.cloneNode(true);
@@ -498,7 +498,7 @@ function showRecollectConfirmModal(missingCount, indexName) {
 async function startRecollect(indexName, missingCount) {
   // 1. 사용자에게 진행 중 표시 (토스트 또는 로딩)
   showToast(`🔄 ${indexName} 인덱스 재수집 시작 (${missingCount}건) ...`);
-
+  
   // 2. 백엔드 API 호출 (실제 구현 시 URL 수정)
   try {
     // 예시: POST /api/recollect
@@ -628,10 +628,10 @@ function openConfirmCorrectionModal() {
 }
 
 function showConfirmModal(action, onConfirm, isDelete = false) {
-  const msg = isDelete
+  const msg = isDelete 
     ? `정말 "${currentCorrectionItem.title}" 항목을 삭제하시겠습니까?`
     : `현재 성향을 "${action}"(으)로 변경하시겠습니까?`;
-
+  
   // 기존 tendencyConfirmModal 재사용 (또는 새로 생성)
   let confirmModal = document.getElementById('tendencyConfirmModal');
   if (!confirmModal) {
@@ -709,9 +709,9 @@ function applyCorrection(row, newTendency) {
 function openDeleteConfirmModal() {
   const modal = document.getElementById('deleteConfirmModal');
   if (!modal) return;
-
+  
   document.getElementById('deleteItemTitle').innerText = currentCorrectionItem.title;
-
+  
   const confirmBtn = document.getElementById('deleteConfirmOk');
   const newConfirmBtn = confirmBtn.cloneNode(true);
   confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
@@ -722,21 +722,21 @@ function openDeleteConfirmModal() {
     currentCorrectionItem = null;
     currentCorrectionRow = null;
   };
-
+  
   const cancelBtn = document.getElementById('deleteConfirmCancel');
   const newCancelBtn = cancelBtn.cloneNode(true);
   cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
   newCancelBtn.onclick = () => {
     modal.classList.remove('show');
   };
-
+  
   modal.classList.add('show');
 }
 
 // ── 데이터 보정 페이지 (검토 필요 항목 테이블, 수정 버튼)
 function _renderCorrectionPage() {
   const main = document.getElementById('admMain');
-
+  
   const reviewItems = [
     { id: 1, title: "반도체 급등 이유는?", url: "https://n.news.naver.com/article/082/0001234567", score: "98.7", tendency: "매우긍정" },
     { id: 2, title: "AI 주가 폭락 우려", url: "https://n.news.naver.com/article/082/0009876543", score: "2.1", tendency: "매우부정" },
@@ -789,14 +789,14 @@ function _renderCorrectionPage() {
       const url = row.getAttribute('data-url');
       const score = row.getAttribute('data-score');
       const currentTendency = row.getAttribute('data-tendency');
-
+      
       currentCorrectionItem = { id, title, url, score, currentTendency };
       currentCorrectionRow = row;
-
+      
       openConfirmCorrectionModal();  // 성향 변경 모달 (긍정/중립/부정 선택)
     });
   });
-
+  
   const refreshBtn = document.getElementById('refreshCorrectionBtn');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', () => { location.reload(); });
@@ -820,11 +820,11 @@ function _admRoute(page){
 function initAdminScreen() {
   _admLogs = _genLogs(120);
   _admRoute('logs');
-
+  
   document.querySelectorAll('.adm-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => _admRoute(btn.dataset.admPage));
   });
-
+  
   document.getElementById('admLogoutBtn').addEventListener('click', () => {
     if (_tailInterval) { clearInterval(_tailInterval); _tailInterval = null; }
     localStorage.removeItem('fp_session');
@@ -832,7 +832,7 @@ function initAdminScreen() {
   });
 
   // ========== 모달 배경 클릭 시 닫기 ==========
-
+  
   // confirmCorrectionModal 닫기 (배경 클릭 시)
   const confirmModal = document.getElementById('confirmCorrectionModal');
   if (confirmModal) {
@@ -842,7 +842,7 @@ function initAdminScreen() {
       }
     });
   }
-
+  
   // deleteConfirmModal 닫기 (배경 클릭 시)
   const deleteModal = document.getElementById('deleteConfirmModal');
   if (deleteModal) {
@@ -852,7 +852,7 @@ function initAdminScreen() {
       }
     });
   }
-
+  
   // errorRetryModal 닫기 (배경 클릭 시)
   const errorModal = document.getElementById('errorRetryModal');
   if (errorModal) {
@@ -893,10 +893,10 @@ async function retryMissingUrl(btn, url, title, country, statusCell) {
   const originalText = btn.innerText;
   btn.disabled = true;
   btn.innerText = '처리 중...';
-
+  
   // 2. 상태 표시 변경 (재시도 중)
   statusCell.innerHTML = `<span class="log-badge log-warn">재시도 중</span>`;
-
+  
   try {
     // 3. 백엔드 API 호출 (실제 구현 시 URL 수정)
     const response = await fetch('/api/retry-missing', {
@@ -905,7 +905,7 @@ async function retryMissingUrl(btn, url, title, country, statusCell) {
       body: JSON.stringify({ url, title, country })
     });
     const result = await response.json();
-
+    
     if (response.ok && result.success) {
       // 성공 시
       statusCell.innerHTML = `<span class="log-badge log-success">복구 완료</span>`;

@@ -11,9 +11,9 @@ import requests
 from elasticsearch import Elasticsearch
 from dateutil import parser
 
-# 유틸리티 로직 임포트
-from crawling.actions.crawlUtil import  getDriver, extractContentWithJS, generateHashId
-from crawling.actions.cleaningUtil import NewsCleaner
+# 유틸리티 로직 임포트 (좀비 프로세스 정리는 managed_driver 내부의 atexit 등이 담당)
+from utils.crawlerUtils import extract_content_with_js, generate_hash_id, managed_driver
+from utils.cleaningUtils import NewsCleaner
 
 # [설정]
 INDEX_NAME = 'news_en'
@@ -26,82 +26,124 @@ TARGET_KEYWORDS = [
 MAX_WORKERS = 2
 es = Elasticsearch(ES_URL)
 
+# 한국 표준시(KST) 설정
+KST = dt.timezone(dt.timedelta(hours=9))
+
 warnings.filterwarnings("ignore", category=parser.UnknownTimezoneWarning)
 
-# 전역 카운터 및 락
 total_processed_count = 0
 counter_lock = threading.Lock()
 
 
-def processBatch(targets, thread_id, total_target_count):
-    """기사 1건마다 ES에 즉시 적재하는 로직 (자원 해제 보강)"""
+# ---------------------------------------------------------------------------
+
+def process_batch(targets, thread_id, total_target_count, batch_collected_at):
+    """기사 1건마다 ES에 즉시 적재 (뉴욕 시간 강제 변환 및 상대 시간 계산)"""
     global total_processed_count
     local_success_count = 0
 
-    print(f"[Thread-{thread_id}] 브라우저 가동 (담당 {len(targets)}건)")
-
-    # 1. managed_driver를 사용하여 with 블록 종료 시 무조건 quit 호출
-    from crawling.actions.crawlUtil import managedDriver
-
-    with managedDriver() as driver:
-        driver.set_page_load_timeout(25)
-
+    # managed_driver가 생성, 추적 리스트 등록, 종료(quit)를 모두 알아서 처리함
+    with managed_driver() as driver:
         for target in targets:
             try:
-                # 1. URL 정제 및 ID 생성
-                clean_url = target['url'].split('?')[0].split('#')[0].strip()
-                doc_id = generateHashId(clean_url, target['title'])
+                raw_pub = target.get('raw_published', '').strip()
+                published_at = None
 
-                # 2. 중복 체크 (ES 서버 레벨)
+                # [필터링] 10 hours ago 형태거나 시:분(HH:mm)이 포함되어 있어야 함 (B 제거)
+                has_time = re.search(r'\d{1,2}:\d{2}', raw_pub)
+                is_relative = "ago" in raw_pub.lower()
+
+                if not (has_time or is_relative):
+                    continue  # 시분 정보가 없는 데이터는 버림
+
+                # [날짜 가공]
+                try:
+                    if is_relative:
+                        # 1. '10 hours ago' 형태 처리
+                        num_match = re.search(r'\d+', raw_pub)
+                        if not num_match: continue
+                        num = int(num_match.group())
+                        now_kst = datetime.now(KST)
+
+                        if "hour" in raw_pub:
+                            published_at_dt = now_kst - dt.timedelta(hours=num)
+                        elif "minute" in raw_pub:
+                            published_at_dt = now_kst - dt.timedelta(minutes=num)
+                        elif "day" in raw_pub:
+                            published_at_dt = now_kst - dt.timedelta(days=num)
+                        else:
+                            published_at_dt = now_kst
+                        published_at = published_at_dt.strftime('%Y-%m-%d %H:%M:%S')
+                    else:
+                        # 2. 절대 시간 파싱 시도
+                        try:
+                            parsed_dt = parser.parse(raw_pub)
+                            if parsed_dt.tzinfo is None:
+                                # 타임존 없으면 뉴욕(EDT) 간주 후 KST 변환 (+13)
+                                parsed_dt = parsed_dt.replace(tzinfo=dt.timezone(dt.timedelta(hours=-4)))
+                            published_at = parsed_dt.astimezone(KST).strftime('%Y-%m-%d %H:%M:%S')
+                        except:
+                            # 파싱 에러 시 시:분 추출하여 뉴욕 시간 강제 적용
+                            time_match = re.search(r'(\d{1,2}):(\d{2})', raw_pub)
+                            if time_match:
+                                hr, mn = map(int, time_match.groups())
+                                ny_dt = datetime.now(KST).replace(hour=hr, minute=mn, second=0)
+                                published_at = (ny_dt + dt.timedelta(hours=13)).strftime('%Y-%m-%d %H:%M:%S')
+
+                except Exception:
+                    continue
+
+                if not published_at:
+                    continue
+
+                # 3. URL 정제 및 ID 생성
+                clean_url = target['url'].split('?')[0].split('#')[0].strip()
+                doc_id = generate_hash_id(clean_url, target['title'])
+
                 if es.exists(index=INDEX_NAME, id=doc_id):
                     continue
 
-                # 3. 본문 수집
+                # 4. 본문 수집
                 driver.get(target['url'])
                 time.sleep(3)
+                content = extract_content_with_js(driver, title=target['title'])
 
-                content = extractContentWithJS(driver, title=target['title'])
-
-                # 4. 본문 길이 및 클리닝 검증
                 if not content or len(content.strip()) < 150:
                     continue
 
                 clean_content = NewsCleaner.clean(content)
-                if not NewsCleaner.isValid(clean_content, target['title']):
+                if not NewsCleaner.is_valid(clean_content, target['title']):
                     continue
 
-                # 5. 데이터 준비
+                # 5. 데이터 적재
                 doc = {
                     "doc_id": doc_id,
                     "url": clean_url,
                     "lang": "en",
                     "title": target['title'],
                     "content": clean_content,
-                    "published_at": datetime.now().strftime('%Y-%m-%dT%H:%M:%S'),
-                    "collected_at": datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
+                    "published_at": published_at,
+                    "collected_at": batch_collected_at
                 }
 
-                # 6. ES 개별 적재
                 es.index(index=INDEX_NAME, id=doc_id, document=doc)
 
                 local_success_count += 1
                 with counter_lock:
                     total_processed_count += 1
-                    print(f"[EN] 성공: ({total_processed_count}/{total_target_count}) {target['title'][:30]}...")
+                    print(f"[EN] ({total_processed_count}/{total_target_count}) 성공: '{target['title'][:30]}...'")
 
             except Exception:
-                # 개별 기사 처리 중 에러가 나도 다음 기사로 진행 (드라이버는 유지)
                 continue
 
-    # with 블록을 나가는 순간 driver.quit()이 자동 호출됩니다.
     return local_success_count
 
 
-def runCollector(start_str=None, end_str=None):
-
+def run_collector(start_str=None, end_str=None):
+    global total_processed_count
     is_today_mode = not start_str
     if is_today_mode:
-        start_str = datetime.now().strftime('%Y-%m-%d')
+        start_str = datetime.now(KST).strftime('%Y-%m-%d')
     if not end_str:
         end_str = start_str
 
@@ -110,15 +152,18 @@ def runCollector(start_str=None, end_str=None):
 
     current = start_date
     while current <= end_date:
+        total_processed_count = 0
         target_day = current.strftime('%Y-%m-%d')
-        next_day = (current + dt.timedelta(days=1)).strftime('%Y-%m-%d')
-        all_targets = []
+        batch_collected_at = datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
 
-        print(f"--- {target_day} 뉴스 검색 시작 ---")
+        print(f"\n--- {target_day} 목록 수집 시작 ---")
+
+        all_targets = []
         for kw in TARGET_KEYWORDS:
-            query_str = f'"{kw}"'
+            print(f"[{target_day}] Google News 검색 중: {kw}...")
+            query_str = f"{kw}"
             if not is_today_mode:
-                query_str += f" after:{target_day} before:{next_day}"
+                query_str += f" after:{target_day} before:{(current + dt.timedelta(days=1)).strftime('%Y-%m-%d')}"
 
             rss_url = f"https://news.google.com/rss/search?q={quote(query_str)}&hl=en-US&gl=US&ceid=US:en"
 
@@ -126,43 +171,36 @@ def runCollector(start_str=None, end_str=None):
                 resp = requests.get(rss_url, timeout=10)
                 feed = feedparser.parse(resp.content)
                 for e in feed.entries:
-                    all_targets.append({"title": e.title, "url": e.link})
+                    all_targets.append({
+                        "title": e.title,
+                        "url": e.link,
+                        "raw_published": e.get('published', '')
+                    })
             except:
                 continue
 
-        # 제목 기준 중복 제거
+        print(f"[{target_day}] 목록 수집 완료. 총 {len(all_targets)}건 발견.")
+
         seen_titles = set()
         unique_targets = []
         for it in all_targets:
-            title_key = re.sub(r'[^a-zA-Z0-9가-힣]', '', it['title']).lower()
+            title_key = re.sub(r'[^a-z0-9]', '', it['title'].lower())
             if title_key not in seen_titles and len(it['title']) > 5:
                 seen_titles.add(title_key)
                 unique_targets.append(it)
 
-        total_len = len(unique_targets)
-        print(f"분석 대상: 총 {total_len}건 (중복 제거 완료)")
+        print(f"[{target_day}] 중복 제거 후 최종 대상: {len(unique_targets)}건")
 
+        total_len = len(unique_targets)
         if unique_targets:
             chunk_size = (total_len // MAX_WORKERS) + 1
             chunks = [unique_targets[i:i + chunk_size] for i in range(0, total_len, chunk_size)]
-
             with ThreadPoolExecutor(max_workers=MAX_WORKERS) as exc:
-                futures = [exc.submit(processBatch, c, i, total_len) for i, c in enumerate(chunks)]
-                for f in as_completed(futures):
-                    f.result()
+                futures = [exc.submit(process_batch, c, i, total_len, batch_collected_at) for i, c in enumerate(chunks)]
+                for f in as_completed(futures): f.result()
 
-        print(f"--- {target_day} 작업 완료 ---")
         current += dt.timedelta(days=1)
 
 
 if __name__ == "__main__":
-    # --- 날짜 지정 사용 방법 ---
-
-    # 1. 오늘 날짜만 수집할 때:
-    runCollector()
-
-    # 2. 특정 하루만 수집할 때:
-    # run_collector(start_str="2026-05-01")
-
-    # 3. 특정 기간 범위를 수집할 때 (예: 5월 1일 ~ 5월 5일):
-    #run_collector(start_str="2026-05-01", end_str="2026-05-05")
+    run_collector()
