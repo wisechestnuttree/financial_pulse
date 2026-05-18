@@ -1,6 +1,6 @@
 # login, signup, findId, findPw, changePw 등
 import traceback
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Request, status, Response
 
 from router.commonFunc import ok
 from dataStorage.mariaDb.db import getConn
@@ -28,7 +28,7 @@ LOCK_HOUR = 24  # 잠금 해제까지 걸리는 시간 (시간 단위)
 # [1] 로그인
 # ================================================================
 @router.post("/login")
-def logIn(req: LoginRequest, request: Request):
+def logIn(req: LoginRequest, request: Request, response: Response):
     """
     성공 →  { success: True,  message: "로그인 성공",   data: { u_id } }
     실패 →  { success: False, message: "<사유>",        data: null }
@@ -36,6 +36,23 @@ def logIn(req: LoginRequest, request: Request):
     로그인인데 어떻게 세션이 존재하는가 --> 로그에 찍을 세션이 존재하지 않은데.
     logger.warning("로그인 실패 - 존재하지 않는 이메일", extra={"action": "logIn", "u_id": req.u_id})
     """
+    from encryption.encBase import ADMIN_EMAIL
+    from service.adminSvc import adminLogin
+
+    if req.email == ADMIN_EMAIL:
+        # 관리자 이메일이면 adminSvc로 위임
+        result = adminLogin(email=req.email, password=req.password)
+
+        # 세션 쿠키 저장 - X 예정
+        response.set_cookie(
+            key="admin_session",
+            value=result["token"],
+            httponly=True,
+            samesite="lax",
+            max_age=60 * 60 * 8
+        )
+        return ok("관리자 로그인 성공", {"role": "admin", "email": result["email"]})
+
     conn = getConn()
     try:
         with conn.cursor() as cursor:

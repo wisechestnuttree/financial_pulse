@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>관리자 — Financial Pulse</title>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800;900&family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* ===== CSS 변수 정의 ===== */
+    :root {
+      --navy: #0D1F3C;
+      --teal: #00B5AD;
+      --teal-s: rgba(0,181,173,.12);
+      --gold: #C9A227;
+      --pos: #2ECC71;
+      --neg: #E74C3C;
+      --neu: #8E9CC5;
+      --bg: #F0F4FA;
+      --panel: rgba(255,255,255,.92);
+      --pbl: rgba(13,31,60,.1);
+      --text: #1A2A4A;
+      --sub: #6B7FA3;
+      --rxl: 28px;
+      --rlg: 22px;
+      --rmd: 16px;
+      --sh: 0 4px 24px rgba(13,31,60,.08);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Sora', 'Noto Sans KR', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ===== 레이아웃 ===== */
+    .app-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      min-height: 100vh;
+    }
+
+    /* ===== 사이드바 ===== */
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--pbl);
+      padding: 24px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+    }
+
+    .sidebar .logo {
+      font-size: 20px;
+      font-weight: 900;
+      color: var(--navy);
+      padding: 8px 12px 20px;
+      border-bottom: 1px solid var(--pbl);
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .sidebar .logo span {
+      color: var(--teal);
+    }
+
+    .nav-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-radius: 12px;
+      background: transparent;
+      border: none;
+      color: var(--sub);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+      text-align: left;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .nav-btn:hover {
+      background: var(--teal-s);
+      color: var(--teal);
+    }
+
+    .nav-btn.active {
+      background: var(--teal-s);
+      color: var(--teal);
+      font-weight: 700;
+    }
+
+    .adm-section-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--sub);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 8px 12px 4px;
+      margin-top: 4px;
+    }
+
+    .user-info {
+      margin-top: auto;
+      margin-bottom: 8px;
+      padding: 18px 16px;
+      background: rgba(0, 181, 173, 0.06);
+      border-radius: 16px;
+      border: 1px solid rgba(0, 181, 173, 0.1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .user-email {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--navy);
+      word-break: break-all;
+    }
+
+    .logout-btn {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 40px;
+      border: 1.5px solid rgba(231, 76, 60, 0.25);
+      background: rgba(231, 76, 60, 0.08);
+      color: #e74c3c;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .logout-btn:hover {
+      background: rgba(231, 76, 60, 0.15);
+    }
+
+    /* ===== 메인 콘텐츠 ===== */
+    .content {
+      padding: 28px 32px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* ===== 페이지 제목 ===== */
+    .page-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: var(--navy);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .page-title i { color: var(--teal); font-size: 20px; }
+
+    /* ===== 통계 카드 ===== */
+    .adm-stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 8px;
+    }
+
+    .adm-stat-card {
+      background: var(--panel);
+      border: 1px solid var(--pbl);
+      border-radius: var(--rxl);
+      padding: 18px 22px;
+      box-shadow: var(--sh);
+    }
+
+    .asc-label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sub);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .asc-val {
+      font-size: 28px;
+      font-weight: 900;
+      color: var(--navy);
+      margin: 8px 0 4px;
+    }
+
+    .asc-sub {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--sub);
+    }
+
+    .asc-info .asc-val { color: var(--teal); }
+    .asc-err .asc-val { color: var(--neg); }
+    .asc-warn .asc-val { color: var(--gold); }
+    .asc-ok .asc-val { color: var(--pos); }
+
+    /* ===== 탭 ===== */
+    .adm-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .adm-tab {
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: 1.5px solid var(--pbl);
+      background: transparent;
+      color: var(--sub);
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.2s;
+    }
+
+    .adm-tab.active {
+      background: var(--teal);
+      color: #fff;
+      border-color: var(--teal);
+    }
+
+    /* ===== 필터 바 ===== */
+    .adm-filter-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      background: var(--panel);
+      padding: 16px 20px;
+      border-radius: var(--rxl);
+      margin-bottom: 20px;
+      align-items: center;
+      border: 1px solid var(--pbl);
+    }
+
+    .adm-filter-bar label {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--sub);
+      margin-right: 6px;
+    }
+
+    .adm-filter-bar select,
+    .adm-filter-bar input {
+      padding: 8px 12px;
+      border-radius: 8px;
+      border: 1.5px solid var(--pbl);
+      background: white;
+      font-family: inherit;
+      font-size: 12px;
+    }
+
+    .adm-search-wrap {
+      display: flex;
+      gap: 8px;
+      flex: 1;
+    }
+
+    /* ===== 버튼 ===== */
+    .adm-btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: 0;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .adm-btn-primary {
+      background: var(--teal);
+      color: #fff;
+    }
+
+    .adm-btn-ghost {
+      background: var(--panel);
+      border: 1.5px solid var(--pbl);
+      color: var(--sub);
+    }
+
+    /* ===== 로그 테이블 ===== */
+    .adm-log-wrap {
+      background: var(--panel);
+      border: 1px solid var(--pbl);
+      border-radius: var(--rxl);
+      overflow: hidden;
+    }
+
+    .adm-log-toolbar {
+      display: flex;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--pbl);
+    }
+
+    .alt-title {
+      font-size: 14px;
+      font-weight: 800;
+      color: var(--navy);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .adm-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+
+    .adm-table th {
+      background: rgba(0,181,173,.06);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 800;
+      color: var(--sub);
+      border-bottom: 1.5px solid var(--pbl);
+    }
+
+    .adm-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--pbl);
+      color: var(--text);
+    }
+
+    .adm-table td.log-msg {
+      max-width: 500px;
+      word-break: break-word;
+      white-space: normal;
+    }
+
+    /* ===== 로그 뱃지 ===== */
+    .log-badge {
+      display: inline-flex;
+      padding: 2px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+    }
+    .log-success { background: rgba(46,204,113,.12); color: #2ECC71; }
+    .log-warn { background: rgba(201,162,39,.12); color: #C9A227; }
+    .log-error { background: rgba(231,76,60,.12); color: #E74C3C; }
+    .log-info { background: rgba(0,181,173,.12); color: #00B5AD; }
+
+    /* ===== 모달 ===== */
+    .adm-detail-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(13,31,60,.6);
+      backdrop-filter: blur(8px);
+      z-index: 2000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .adm-detail-modal.show { display: flex; }
+    .adm-detail-box {
+      background: var(--panel);
+      border-radius: var(--rxl);
+      width: 680px;
+      max-width: 95vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .adm-detail-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--pbl);
+      display: flex;
+      justify-content: space-between;
+    }
+    .adm-detail-body { padding: 20px; overflow-y: auto; }
+
+    .correction-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(13,31,60,.6);
+      backdrop-filter: blur(4px);
+      z-index: 2100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    .correction-modal.show { display: flex; }
+    .correction-box {
+      background: #fff;
+      border-radius: 24px;
+      width: 360px;
+      padding: 28px;
+      text-align: center;
+      position: relative;
+    }
+        /* 활성화된 재시도 버튼 스타일 (기본 ghost 버튼) */
+    .retry-missing-btn:not(:disabled) {
+      opacity: 1;
+      cursor: pointer;
+      background: var(--panel);
+      color: var(--teal);
+      border: 1.5px solid rgba(0,181,173,.3);
+    }
+    .retry-missing-btn:not(:disabled):hover {
+      background: var(--teal-s);
+    }
+    /* 비활성화된 버튼 */
+    .retry-missing-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--panel);
+      border-color: var(--pbl);
+      color: var(--sub);
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <div class="logo">FP <span>ADMIN</span></div>
+    <button class="adm-nav-btn nav-btn active" data-adm-page="logs"><i class="fas fa-list"></i> 로그 뷰어</button>
+    <div class="adm-section-label">시스템</div>
+    <button class="adm-nav-btn nav-btn" data-adm-page="crawler"><i class="fas fa-spider"></i> 크롤링 관리</button>
+    <button class="adm-nav-btn nav-btn" data-adm-page="es"><i class="fas fa-database"></i> ES 인덱스</button>
+    <button class="adm-nav-btn nav-btn" data-adm-page="correction"><i class="fas fa-wand-magic-sparkles"></i> 데이터 보정</button>
+    <div class="user-info">
+      <div class="user-email"><i class="fas fa-user-shield"></i> admin@financepulse.com</div>
+      <button class="logout-btn" id="admLogoutBtn"><i class="fas fa-right-from-bracket"></i> 로그아웃</button>
+    </div>
+  </aside>
+  <main class="content" id="admMain"></main>
+</div>
+
+<!-- 모달들 -->
+<div class="adm-detail-modal" id="admDetailModal">
+  <div class="adm-detail-box">
+    <div class="adm-detail-header">
+      <h3 id="admDetailTitle">로그 상세</h3>
+      <button class="adm-btn adm-btn-ghost" id="admDetailClose">✕ 닫기</button>
+    </div>
+    <div class="adm-detail-body" id="admDetailBody"></div>
+  </div>
+</div>
+
+<div class="adm-detail-modal" id="errorRetryModal" style="display: none;">
+  <div class="adm-detail-box" style="width: 900px; height: 85vh;">
+    <div class="adm-detail-header">
+      <h3>🔄 크롤링 오류 재시도 관리자</h3>
+      <button class="adm-btn adm-btn-ghost" id="closeErrorRetryModal">✕ 닫기</button>
+    </div>
+    <div style="flex:1; overflow: auto;">
+      <iframe src="adminErrorretry.html" style="width:100%; height:100%; border: none;"></iframe>
+    </div>
+  </div>
+</div>
+
+<!-- 재수집 확인 모달 -->
+<div class="correction-modal" id="recollectConfirmModal">
+  <div class="correction-box" style="width: 380px;">
+    <button class="modal-close-btn" onclick="closeRecollectModal()" style="position: absolute; top: 12px; right: 12px; background: transparent; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+    <div id="recollectMessage" style="margin-bottom: 20px; text-align: center; font-size: 16px; font-weight: 700;">
+      누락 4건 재수집을 시작하시겠습니까?
+    </div>
+    <div style="display: flex; gap: 12px;">
+      <button id="recollectCancelBtn" class="adm-btn adm-btn-ghost" style="flex: 1;">취소</button>
+      <button id="recollectConfirmBtn" class="adm-btn adm-btn-primary" style="flex: 1;">확인</button>
+    </div>
+  </div>
+</div>
+
+<!-- 성향 변경/삭제 모달 (4개 버튼) -->
+<div class="correction-modal" id="confirmCorrectionModal">
+  <div class="correction-box" style="width: 420px;">
+    <button class="modal-close-btn" onclick="document.getElementById('confirmCorrectionModal').classList.remove('show')" style="position: absolute; top: 12px; right: 12px; background: transparent; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+    <h4 style="margin-bottom: 20px;">✏️ 성향 변경 / 삭제</h4>
+    <div style="background: #f5f7fa; padding: 16px; border-radius: 16px; margin-bottom: 20px; text-align: left;">
+      <div><strong>📌 제목</strong><br><span id="confirmItemTitle">-</span></div>
+      <div><strong>🔗 URL</strong><br><span id="confirmItemUrl">-</span></div>
+      <div><strong>📊 현재 점수</strong><br><span id="confirmItemScore">-</span></div>
+      <div><strong>🏷️ 현재 성향</strong><br><span id="confirmCurrentTendency">-</span></div>
+    </div>
+    <!-- 4개 버튼 -->
+    <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap;">
+      <button id="actionPositive" class="adm-btn" style="background: #2ECC71; color: white; border: none; padding: 10px 18px; border-radius: 40px; font-weight: 800;">긍정</button>
+      <button id="actionNeutral" class="adm-btn" style="background: #8E9CC5; color: white; border: none; padding: 10px 18px; border-radius: 40px; font-weight: 800;">중립</button>
+      <button id="actionNegative" class="adm-btn" style="background: #E74C3C; color: white; border: none; padding: 10px 18px; border-radius: 40px; font-weight: 800;">부정</button>
+      <button id="actionDelete" class="adm-btn" style="background: #2c3e50; color: white; border: none; padding: 10px 18px; border-radius: 40px; font-weight: 800;">삭제</button>
+    </div>
+  </div>
+</div>
+
+<!-- 삭제 확인 모달 -->
+<div class="correction-modal" id="deleteConfirmModal">
+  <div class="correction-box" style="width: 360px;">
+    <button class="modal-close-btn" onclick="document.getElementById('deleteConfirmModal').classList.remove('show')" style="position: absolute; top: 12px; right: 12px; background: transparent; border: none; font-size: 24px; cursor: pointer;">&times;</button>
+    <div style="font-size: 48px; text-align: center; margin-bottom: 16px;">⚠️</div>
+    <h4 style="margin-bottom: 12px;">삭제 확인</h4>
+    <p style="margin-bottom: 24px; color: var(--sub); font-size: 14px;">
+      "<span id="deleteItemTitle" style="font-weight: 800; color: var(--navy);"></span>" 항목을<br>
+      정말 삭제하시겠습니까?
+    </p>
+    <div style="display: flex; gap: 12px;">
+      <button id="deleteConfirmCancel" class="adm-btn adm-btn-ghost" style="flex: 1;">취소</button>
+      <button id="deleteConfirmOk" class="adm-btn" style="flex: 1; background: #E74C3C; color: white; border: none;">삭제</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// 세션 자동 생성
+if (!localStorage.getItem('fp_session')) {
+  localStorage.setItem('fp_session', JSON.stringify({
+    email: 'admin@financepulse.com',
+    ts: Date.now()
+  }));
+}
+</script>
+<script src="js/core.js"></script>
+<script src="js/admin.js"></script>
+<script>
+const _s = checkSession(true);
+if(_s) {
+  window.onload = function() { initAdminScreen(); };
+}
+
+function closeRecollectModal() {
+  document.getElementById('recollectConfirmModal').classList.remove('show');
+}
+</script>
+</body>
+</html>

@@ -337,8 +337,8 @@ def getDashboard(lang: str = "ko"):
     """
     # today    = date.today().isoformat()
     # week_ago = (date.today() - timedelta(days=7)).isoformat()
-    today = "2026-03-31"
-    week_ago = "2026-03-24"
+    today = "2026-01-30"
+    week_ago = "2026-01-23"
 
     # ── ES — news 인덱스에서 doc_id 수집 후 analyze msearch ────
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
