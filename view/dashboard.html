@@ -139,18 +139,73 @@ function toHotIssueItems(d) {
 
 // 시장 전체 성향 (API 데이터 → core.js의 renderMarketSentiment)
 function renderMarketSentimentFromApi(cid, marketTendency) {
+  const container = document.getElementById(cid);
   if (!marketTendency) {
-    document.getElementById(cid).innerHTML = '<div style="color:var(--sub);">데이터 없음</div>';
+    container.innerHTML = '<div style="color:var(--sub);">데이터 없음</div>';
     return;
   }
-  // core.js의 renderMarketSentiment는 sectors 배열(articles 포함)을 받음
-  // 더미 sectors 생성
-  const dummySectors = [
-    { articles: Array(marketTendency.pos_count || 0).fill({ tag: '긍정' }) },
-    { articles: Array(marketTendency.neg_count || 0).fill({ tag: '부정' }) },
-    { articles: Array(marketTendency.neu_count || 0).fill({ tag: '중립' }) },
-  ];
-  renderMarketSentiment(cid, dummySectors);
+  
+  const pos = marketTendency.pos_count || 0;
+  const neg = marketTendency.neg_count || 0;
+  const total = pos + neg;
+  const posRatio = total === 0 ? 0 : (pos / total) * 100;
+  const negRatio = total === 0 ? 0 : (neg / total) * 100;
+
+  // 도넛 차트 SVG 생성 (긍정, 부정만)
+  const sz = 200, r = sz / 2, inn = 58, c = r;
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", sz);
+  svg.setAttribute("height", sz);
+  svg.setAttribute("viewBox", `0 0 ${sz} ${sz}`);
+
+  let startAngle = 0;
+  [[posRatio, '#2ECC71'], [negRatio, '#E74C3C']].forEach(([val, col]) => {
+    if (val === 0) return;
+    const angle = (val / 100) * 360;
+    const endAngle = startAngle + angle;
+    const radStart = (startAngle - 90) * Math.PI / 180;
+    const radEnd = (endAngle - 90) * Math.PI / 180;
+    const x1 = c + r * Math.cos(radStart);
+    const y1 = c + r * Math.sin(radStart);
+    const x2 = c + r * Math.cos(radEnd);
+    const y2 = c + r * Math.sin(radEnd);
+    const largeArc = angle > 180 ? 1 : 0;
+    const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    path.setAttribute("d", `M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2} Z`);
+    path.setAttribute("fill", col);
+    path.setAttribute("stroke", "white");
+    path.setAttribute("stroke-width", "3");
+    svg.appendChild(path);
+    startAngle = endAngle;
+  });
+
+  // 가운데 원
+  const innerCircle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+  innerCircle.setAttribute("cx", c);
+  innerCircle.setAttribute("cy", c);
+  innerCircle.setAttribute("r", inn);
+  innerCircle.setAttribute("fill", "#f0f6ff");
+  svg.appendChild(innerCircle);
+
+  const dominant = posRatio >= negRatio ? '긍정' : '부정';
+  const dominantPct = Math.max(posRatio, negRatio).toFixed(1);
+  const dominantColor = posRatio >= negRatio ? 'var(--pos)' : 'var(--neg)';
+
+  container.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;height:100%">
+      <div class="market-donut" style="position:relative;">
+        ${svg.outerHTML}
+        <div class="donut-center">
+          <span class="pulse-num" style="font-size:26px;color:${dominantColor};">${dominantPct}%</span>
+          <span style="font-size:11px;color:var(--sub);margin-top:2px;">${dominant}</span>
+        </div>
+      </div>
+      <div class="market-legend">
+        <span class="leg-item"><span class="leg-dot" style="background:#2ECC71;"></span>긍정 ${posRatio.toFixed(1)}%</span>
+        <span class="leg-item"><span class="leg-dot" style="background:#E74C3C;"></span>부정 ${negRatio.toFixed(1)}%</span>
+      </div>
+    </div>
+  `;
 }
 
 // 섹터별 긍/부정 비율 (API 데이터 → core.js의 renderSectorStack)

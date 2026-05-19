@@ -1198,7 +1198,7 @@ function updateGauge(code, item) {
 
   ctx.fillStyle = "#5A6E8C";
   ctx.font = "bold 10px 'Sora'";
-  ctx.fillText("강도 ↑", cx + r - 28, cy - 14);
+  ctx.fillText("", cx + r - 28, cy - 14);
 }
 
 // ================================================================
@@ -1224,15 +1224,17 @@ function renderHotNewsPanel(apiData) {
   };
   const defaultImg = 'photo/news_default.png';
 
-  // hot_news → articles 펼쳐서 최대 8개 수집
+  // 상위 6개 키워드 각각 최대 2개 기사 수집 → 총 12개 카드
+  const topKeywords = hotNews.slice(0, 6);   // 상위 6개 키워드
   const cards = [];
-  for (const h of hotNews) {
-    for (const art of (h.articles || [])) {
-      if (cards.length >= 8) break;
-      cards.push({ keyword: h.keyword, art });
+  for (const kwItem of topKeywords) {
+    const articles = kwItem.articles || [];
+    const takeArticles = articles.slice(0, 2);   // 키워드당 최대 2개
+    for (const art of takeArticles) {
+      cards.push({ keyword: kwItem.keyword, art });
     }
-    if (cards.length >= 8) break;
   }
+  // 만약 12개 미만이어도 정상 동작 (부족한 만큼만 표시)
 
   newsGrid.innerHTML = cards.map(({ keyword, art }) => {
     const tag      = art.tendency || 'neutral';
