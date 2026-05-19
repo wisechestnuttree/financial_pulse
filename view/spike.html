@@ -199,7 +199,8 @@ function renderNews(listId, titleId, sector, db, defaultLabel) {
   var list = document.getElementById(listId);
   var titleEl = document.getElementById(titleId);
   if (!list) return;
-  var items = db[sector] || db['전체'] || [];
+  var rawItems = db[sector] || db['전체'] || [];
+  var items = sector === '전체' ? rawItems.slice(0, 5) : rawItems;
   var iconMap = { pos:'fas fa-face-smile', neg:'fas fa-face-frown', neu:'fas fa-face-meh' };
   var clsMap  = { pos:'icon-pos', neg:'icon-neg', neu:'icon-neu' };
   list.style.opacity = '0';
