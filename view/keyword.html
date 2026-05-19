@@ -1191,30 +1191,55 @@ function renderHotNewsPanel(apiData) {
   if (!hotNews.length) return;
 
   const tagMap = { positive: '긍정', negative: '부정', neutral: '중립' };
+  const tagColorMap = { positive: 'var(--pos)', negative: 'var(--neg)', neutral: 'var(--sub)' };
+
   const sectorImgMap = {
-    tech: 'tech.png',
-    industry: 'industry.png',
-    consumer: 'consumer.png',
-    bio: 'bio.png',
-    mobility: 'mobility.png',
-    macro_policy: 'macro_policy.png',
-    finance: 'finance.png',
+    'IT/기술'    : 'photo/tech.png',
+    '중공업/인프라': 'photo/industry.png',
+    '소비재/서비스': 'photo/consumer.png',
+    '바이오/헬스' : 'photo/bio.png',
+    '모빌리티'   : 'photo/mobility.png',
+    '매크로/정책' : 'photo/macro_policy.png',
+    '금융'       : 'photo/finance.png',
   };
   const defaultImg = 'photo/news_default.png';
 
-  newsGrid.innerHTML = hotNews.slice(0, 8).map((h) => {
-    const art = h.article || {};
-    const tag = art.tendency || 'neutral';
-    const sector = h.sector || '';
-    const imgSrc = sectorImgMap[sector] ? `photo/${sectorImgMap[sector]}` : defaultImg;
+  // hot_news → articles 펼쳐서 최대 8개 수집
+  const cards = [];
+  for (const h of hotNews) {
+    for (const art of (h.articles || [])) {
+      if (cards.length >= 8) break;
+      cards.push({ keyword: h.keyword, art });
+    }
+    if (cards.length >= 8) break;
+  }
+
+  newsGrid.innerHTML = cards.map(({ keyword, art }) => {
+    const tag      = art.tendency || 'neutral';
+    const sector   = art.sector   || '';
+    const score    = art.tend_score ? (art.tend_score * 100).toFixed(0) : '-';
+    const imgSrc   = sectorImgMap[sector] || defaultImg;
+    const tagColor = tagColorMap[tag] || 'var(--sub)';
+    const tagLabel = tagMap[tag]      || '중립';
+
     return `
-      <a class="news-card" href="${art.url || '#'}" target="_blank" rel="noopener" style="text-decoration:none;">
+      <a class="news-card" href="${art.url || '#'}" target="_blank" rel="noopener"
+         style="text-decoration:none;">
         <img class="news-img" src="${imgSrc}" alt="${sector || 'news'}"
-             onerror="this.onerror=null; this.src='photo/news_default.png';">
+             onerror="this.onerror=null; this.src='${defaultImg}';">
         <div class="news-content">
-          <span class="news-tag">${h.keyword}</span>
-          <div class="news-title">${art.title || h.keyword + ' 관련 기사'}</div>
-          <div style="font-size:11px;margin-top:4px;color:var(--sub);">${tagMap[tag] || '중립'}</div>
+          <span class="news-tag">${keyword}</span>
+          ${sector ? `<span style="
+          font-size:11px;font-weight:600;
+          color:var(--teal);
+          background:rgba(0,181,173,0.1);
+          padding:2px 8px;border-radius:20px;
+        ">${sector}</span>` : ''}
+          <div class="news-title">${art.title || keyword + ' 관련 기사'}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+            <span style="font-size:11px;font-weight:700;color:${tagColor};">${tagLabel}</span>
+            <span style="font-size:11px;color:var(--sub);">점수: ${score}</span>
+          </div>
         </div>
       </a>`;
   }).join('');

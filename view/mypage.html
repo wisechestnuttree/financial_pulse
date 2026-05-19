@@ -614,8 +614,12 @@ function bindEvents(email) {
   });
 
   document.getElementById('cancelLogoutBtn')?.addEventListener('click', () => {
-    document.getElementById('logoutConfirmModal').classList.remove('active');
-  });
+  document.getElementById('logoutConfirmModal').classList.remove('active');
+});
+
+document.getElementById('cancelWithdrawBtn')?.addEventListener('click', () => {
+  document.getElementById('withdrawConfirmModal').classList.remove('active');
+});
 
   document.getElementById('confirmLogoutBtn')?.addEventListener('click', async () => {
     try {
@@ -676,7 +680,7 @@ function bindEvents(email) {
   ['verifyPwModal','editProfileModal','changePwModal',
    'logoutConfirmModal','withdrawConfirmModal','withdrawPwModal'].forEach(id => {
     document.getElementById(id)?.addEventListener('click', e => {
-      if (e.target.id === id) document.getElementById(id).classList.remove('active');
+
     });
   });
 }</script>

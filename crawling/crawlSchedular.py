@@ -125,11 +125,11 @@ def add_jobs(test_mode=False):
 
     # 2. 실시간 테스팅 모드 (실행 시 즉시 모든 작업 테스트)
     if test_mode:
-        logger.info("testing: Run all collection operations once after 5 seconds.")
+        logger.info("testing: 3초 후 경제지표 → 10분 후 한국 → 30분 후 미국")
         now = datetime.now(ZoneInfo("Asia/Seoul"))
-        scheduler.add_job(run_ko, trigger='date', run_date=now + timedelta(seconds=5), id='test_ko')
-        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(seconds=7), id='test_en')
-        scheduler.add_job(run_eco, trigger='date', run_date=now + timedelta(seconds=9), id='test_eco')
+        scheduler.add_job(run_eco, trigger='date', run_date=now + timedelta(seconds=3), id='test_eco')
+        scheduler.add_job(run_ko, trigger='date', run_date=now + timedelta(minutes=10), id='test_ko')
+        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(minutes=30), id='test_en')
 
 
 
@@ -157,7 +157,7 @@ signal.signal(signal.SIGTERM, shutdown_handler)
 
 
 if __name__ == "__main__":
-    add_jobs()
+    add_jobs(test_mode=True)
 
     logger.info("Financial Pulse Scheduler Started")
     scheduler.start()

@@ -90,8 +90,6 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
     """
     filter_today = [{"terms": {"doc_id": doc_ids_today}}]
     filter_week  = [{"terms": {"doc_id": doc_ids_week}}]
-    filter_today_pos = filter_today + [{"term": {"tendency": "positive"}}]
-    filter_today_neg = filter_today + [{"term": {"tendency": "negative"}}]
 
     sector_agg = {
         "sector_breakdown": {
@@ -120,15 +118,22 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list) -> list:
         {"query": {"bool": {"filter": filter_week}}, "size": 0,
          "aggs": {"keywords": {"terms": {"field": "keywords", "size": 20}}}},
 
-        # D — 오늘 긍정 keyword (3번)
+        # D — 오늘 keyword별 긍정/부정 분포 (3번, 4번)
         {},
-        {"query": {"bool": {"filter": filter_today_pos}}, "size": 0,
-         "aggs": {"keywords": {"terms": {"field": "keywords", "size": 1}}}},
-
-        # E — 오늘 부정 keyword (4번)
-        {},
-        {"query": {"bool": {"filter": filter_today_neg}}, "size": 0,
-         "aggs": {"keywords": {"terms": {"field": "keywords", "size": 1}}}},
+        {
+            "query": {"bool": {"filter": filter_today}},
+            "size": 0,
+            "aggs": {
+                "keywords": {
+                    "terms": {"field": "keywords", "size": 50},
+                    "aggs": {
+                        "tendency_breakdown": {
+                            "terms": {"field": "tendency", "size": 2}
+                        }
+                    }
+                }
+            }
+        },
 
         # F — 오늘 sector × tendency (6번, 8번)
         {},
@@ -151,7 +156,7 @@ def buildTendency(res_a: dict):
     tendency        → { pos, neg, total, label }  대시보드 상단 메트릭 카드
     market_tendency → { pos, neg, total, pos_count, neg_count }  도넛 차트용"""
     buckets = res_a.get("aggregations", {}).get("tendency", {}).get("buckets", [])
-    counts  = {"positive": 0, "negative": 0}
+    counts = {"positive": 0, "negative": 0}
     for b in buckets:
         if b["key"] in counts:
             counts[b["key"]] = b["doc_count"]
@@ -161,15 +166,15 @@ def buildTendency(res_a: dict):
         base = {"pos": 0.0, "neg": 0.0, "total": 0}
     else:
         base = {
-            "pos"  : round(counts["positive"] / total * 100, 1),
-            "neg"  : round(counts["negative"] / total * 100, 1),
+            "pos": round(counts["positive"] / total * 100, 1),
+            "neg": round(counts["negative"] / total * 100, 1),
             "total": total,
         }
 
     tendency = {**base, "label": tendencyLabel(base["pos"], base["neg"])}
     market_tendency = {**base,
                        "pos_count": counts["positive"],
-                       "neg_count": counts["negative"]  }
+                       "neg_count": counts["negative"]}
     return tendency, market_tendency
 
 
@@ -190,22 +195,53 @@ def buildTopSector(res_f: dict) -> dict:
 
 def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
     """
-    오늘 긍정 1위(3번) + 부정 1위(4번) 키워드 동시 반환
+    전체 키워드 중 긍정 비율이 가장 높은 키워드(3번) +
+    부정 비율이 가장 높은 키워드(4번) 반환
 
-    res_d   : msearch 쿼리 D 응답 (오늘 긍정 기사 keyword 1위)
-    res_e   : msearch 쿼리 E 응답 (오늘 부정 기사 keyword 1위)
+    res_d   : msearch 쿼리 D 응답 (keyword별 긍정/부정 분포)
+    res_e   : 미사용 (인터페이스 유지용)
     total   : 오늘 전체 기사 수 (ratio 계산용)
-    반환     : pos_keyword, neg_keyword → { keyword, count, ratio }
-    사용처   : 대시보드 상단 긍정/부정 1위 키워드 메트릭 카드
     """
-    def extract(res):
-        bkts = res.get("aggregations", {}).get("keywords", {}).get("buckets", [])
-        if not bkts:
-            return {"keyword": None, "count": 0, "ratio": 0.0}
-        kw, cnt = bkts[0]["key"], bkts[0]["doc_count"]
-        return {"keyword": kw, "count": cnt,
-                "ratio": round(cnt / total * 100, 1) if total else 0.0}
-    return extract(res_d), extract(res_e)
+    buckets = res_d.get("aggregations", {}).get("keywords", {}).get("buckets", [])
+
+    pos_top = {"keyword": None, "count": 0, "ratio": 0.0}
+    neg_top = {"keyword": None, "count": 0, "ratio": 0.0}
+
+    # 1단계 — 긍정 건수 1위 키워드
+    for b in buckets:
+        kw = b["key"]
+        counts = {"positive": 0, "negative": 0}
+        for td in b.get("tendency_breakdown", {}).get("buckets", []):
+            if td["key"] in counts:
+                counts[td["key"]] = td["doc_count"]
+
+        if counts["positive"] > pos_top["count"]:
+            pos_top = {
+                "keyword": kw,
+                "count": counts["positive"],
+                "ratio": round(counts["positive"] / total * 100, 1) if total else 0.0,
+            }
+
+    # 2단계 — 부정 건수 1위 키워드 (긍정 1위와 겹치면 스킵)
+    pos_kw = pos_top["keyword"]
+    for b in buckets:
+        kw = b["key"]
+        if kw == pos_kw:  # 긍정 1위 키워드 제외
+            continue
+
+        counts = {"positive": 0, "negative": 0}
+        for td in b.get("tendency_breakdown", {}).get("buckets", []):
+            if td["key"] in counts:
+                counts[td["key"]] = td["doc_count"]
+
+        if counts["negative"] > neg_top["count"]:
+            neg_top = {
+                "keyword": kw,
+                "count": counts["negative"],
+                "ratio": round(counts["negative"] / total * 100, 1) if total else 0.0,
+            }
+
+    return pos_top, neg_top
 
 
 def buildHotIssues(res_b: dict, res_c: dict) -> list:
@@ -337,8 +373,8 @@ def getDashboard(lang: str = "ko"):
     """
     # today    = date.today().isoformat()
     # week_ago = (date.today() - timedelta(days=7)).isoformat()
-    today = "2026-01-30"
-    week_ago = "2026-01-23"
+    today = "2026-03-30"
+    week_ago = "2026-03-23"
 
     # ── ES — news 인덱스에서 doc_id 수집 후 analyze msearch ────
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
@@ -358,7 +394,7 @@ def getDashboard(lang: str = "ko"):
         ms_result = es.msearch(index=ANALYZE_DATA_IDX, body=searches)
         responses = ms_result.get("responses", [])
 
-        if len(responses) < 7:
+        if len(responses) < 6:
             raise ValueError(f"msearch 응답 부족: {len(responses)}개")
 
     except Exception as e:
@@ -373,12 +409,12 @@ def getDashboard(lang: str = "ko"):
     finally:
         es.close()
 
-    res_a, res_b, res_c, res_d, res_e, res_f, res_g = responses[:7]
+    res_a, res_b, res_c, res_d, res_f, res_g = responses[:6]
 
     # ── 번호별 조립 ─────────────────────────────────────────────
     tendency, market_tendency    = buildTendency(res_a)
     top_keyword = buildTopSector(res_f)
-    pos_keyword, neg_keyword     = buildPosNegKeyword(res_d, res_e, tendency["total"])
+    pos_keyword, neg_keyword     = buildPosNegKeyword(res_d, None, tendency["total"])
     hot_issues                   = buildHotIssues(res_b, res_c)
     spike_analysis, sector_tendency = buildSpikeAndSector(res_f, res_g)
     eco_indicators               = getEcoIndicators()

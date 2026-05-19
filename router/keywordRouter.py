@@ -24,7 +24,7 @@ from fastapi import APIRouter, HTTPException
 
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from logs.logger import getLogger
-from router.commonFunc import ok, getDocIds
+from router.commonFunc import ok, getDocIds, translateSector
 
 logger = getLogger("system")
 router = APIRouter(prefix="/api", tags=["keyword"])
@@ -59,9 +59,9 @@ def buildMsearch(doc_ids_today: list, doc_ids_week: list, top20_words: list) -> 
                 },
                 "latest_article": {
                     "top_hits": {
-                        "size"   : 1,
+                        "size"   : 2,
                         "sort"   : [{"tend_score": {"order": "desc"}}],
-                        "_source": ["title", "tendency", "tend_score", "url"]
+                        "_source": ["title", "tendency", "tend_score", "url", "sector"]
                     }
                 }
             }
@@ -273,28 +273,32 @@ def buildHotNews(res_e: dict, top7: list, strength_map: dict, es=None, news_inde
     """
     article_map = {}
     for b in res_e.get("aggregations", {}).get("by_keyword", {}).get("buckets", []):
-        kw   = b["key"]
+        kw = b["key"]
         hits = b.get("latest_article", {}).get("hits", {}).get("hits", [])
         if hits:
-            source = hits[0].get("_source", {})
-            doc_id = hits[0].get("_id") or source.get("doc_id")
+            articles = []
+            for hit in hits:  # ← 단일 → 복수 처리
+                source = hit.get("_source", {})
+                doc_id = hit.get("_id") or source.get("doc_id")
 
-            # doc_id 로 news_ko/en 에서 url 조회
-            if doc_id and es and news_index:
-                try:
-                    news_res = es.get(index=news_index, id=doc_id, _source=["url"])
-                    source["url"] = news_res.get("_source", {}).get("url")
-                except:
-                    pass
+                if doc_id and es and news_index:
+                    try:
+                        news_res = es.get(index=news_index, id=doc_id, _source=["url"])
+                        source["url"] = news_res.get("_source", {}).get("url")
+                    except:
+                        pass
 
-            article_map[kw] = source
+                source["sector"] = translateSector(source.get("sector", ""))  # ← 섹터 한글 변환
+                articles.append(source)
+
+            article_map[kw] = articles  # ← 리스트로 저장
 
     result = []
     for item in top7:
         kw = item["keyword"]
         result.append({
-            "keyword" : kw,
-            "article" : article_map.get(kw),
+            "keyword": kw,
+            "articles": article_map.get(kw, []),  # ← article → articles (복수)
             "strength": strength_map.get(kw),
         })
     return result
@@ -320,8 +324,8 @@ def getKeywordTrend(lang: str = "ko"):
     """
     # today    = date.today().isoformat()
     # week_ago = (date.today() - timedelta(days=7)).isoformat()
-    today = "2026-03-31"
-    week_ago = "2026-03-24"
+    today = "2026-03-30"
+    week_ago = "2026-03-23"
 
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
     es = getEs()

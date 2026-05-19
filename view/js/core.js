@@ -54,11 +54,22 @@ async function checkSession(adminOnly) {
   return session;
 }
 
-function doLogout() {
-  localStorage.removeItem('fp_session');
+async function doLogout() {
+  try {
+    await fetch(BASE_URL + '/membership/logout', {
+      method     : 'POST',
+      credentials: 'include',
+    });
+  } catch(e) {
+    console.warn('logout API 오류:', e);
+  }
+  // sessionStorage 정리
   sessionStorage.removeItem('fp_session');
-  sessionStorage.removeItem('fp_uid');    // ← 추가
-  sessionStorage.removeItem('fp_email'); // ← 추가
+  sessionStorage.removeItem('fp_uid');
+  sessionStorage.removeItem('fp_email');
+  // localStorage 정리
+  localStorage.removeItem('fp_session');
+  localStorage.removeItem('fp_users');
   location.replace('login.html');
 }
 
@@ -234,6 +245,12 @@ function _drawDonut(container, overall){
   let st=0;
   [[pos,'#2ECC71'],[neu,'#8E9CC5'],[neg,'#E74C3C']].forEach(([val,col])=>{
     if(val<=0)return;
+    if(val>=100){
+      const fc=document.createElementNS("http://www.w3.org/2000/svg","circle");
+      fc.setAttribute("cx",cx);fc.setAttribute("cy",cx);
+      fc.setAttribute("r",r);fc.setAttribute("fill",col);
+      svg.appendChild(fc);st+=360;return;
+    }
     const ang=(val/100)*360,end=st+ang;
     const rS=(st-90)*Math.PI/180,rE=(end-90)*Math.PI/180;
     const x1=cx+r*Math.cos(rS),y1=cx+r*Math.sin(rS),x2=cx+r*Math.cos(rE),y2=cx+r*Math.sin(rE);
@@ -458,7 +475,14 @@ function renderHotIssueGrid(cid, sectors) {
 // 급등 기사 성향 분석 렌더 함수 <data(.js): .normal, .today, .articles>
 function renderTrendAnalysis(cid,sectors){const c=document.getElementById(cid);if(!c)return;const items=Array.isArray(sectors)?sectors.filter(Boolean):[];c.innerHTML=items.map(s=>{const articles=Array.isArray(s.articles)?s.articles:[];const d=s.today-s.normal,a=d>=0?'▲':'▼';return`<div class="trend-card" data-sector='${JSON.stringify({...s,articles})}'><div class="tc-head"><div class="tc-name">${s.name}</div><div class="tc-badge">📰 ${articles.length}건</div></div><div class="tc-delta" style="color:${d>=0?'var(--pos)':'var(--neg)'}"><span>${a}</span> ${Math.abs(d)}%p 변화</div><div class="tc-bars"><div class="tc-bar-box"><div class="tiny">평소</div><div class="mini-track"><div class="mini-fill" style="width:${s.normal}%;background:var(--neu);"></div></div><div class="tiny">${s.normal}%</div></div><div class="tc-bar-box"><div class="tiny">오늘</div><div class="mini-track"><div class="mini-fill" style="width:${s.today}%;background:var(--teal);"></div></div><div class="tiny">${s.today}%</div></div></div></div>`;}).join('');document.querySelectorAll(`#${cid} .trend-card`).forEach(c=>c.addEventListener('click',()=>{const s=JSON.parse(c.dataset.sector);const articles=Array.isArray(s.articles)?s.articles:[];alert(`📊 [${s.name}]\n변화율: ${s.today-s.normal}%p\n\n${articles.map(a=>`• ${a.title} (${a.source} / ${a.tag})`).join('\n')}`);}));}
 // 시장 전체 성향 비율 렌더 함수(data(.js): getSentiRatios()가 계산)
-function renderMarketSentiment(cid,sectors){const{pos,neu,neg}=getSentiRatios(sectors);const sz=200,r=sz/2,inn=58,c=r;const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("width",sz);svg.setAttribute("height",sz);svg.setAttribute("viewBox",`0 0 ${sz} ${sz}`);let st=0;[[pos,'#2ECC71'],[neu,'#8E9CC5'],[neg,'#E74C3C']].forEach(([val,col])=>{if(val===0)return;const ang=(val/100)*360,end=st+ang;const rS=(st-90)*Math.PI/180,rE=(end-90)*Math.PI/180;const x1=c+r*Math.cos(rS),y1=c+r*Math.sin(rS),x2=c+r*Math.cos(rE),y2=c+r*Math.sin(rE);const lg=ang>180?1:0;const p=document.createElementNS("http://www.w3.org/2000/svg","path");p.setAttribute("d",`M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} Z`);p.setAttribute("fill",col);p.setAttribute("stroke","white");p.setAttribute("stroke-width","3");svg.appendChild(p);st=end;});const ic=document.createElementNS("http://www.w3.org/2000/svg","circle");ic.setAttribute("cx",c);ic.setAttribute("cy",c);ic.setAttribute("r",inn);ic.setAttribute("fill","#f0f6ff");svg.appendChild(ic);
+function renderMarketSentiment(cid,sectors){const{pos,neu,neg}=getSentiRatios(sectors);const sz=200,r=sz/2,inn=58,c=r;const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("width",sz);svg.setAttribute("height",sz);svg.setAttribute("viewBox",`0 0 ${sz} ${sz}`);let st=0;[[pos,'#2ECC71'],[neu,'#8E9CC5'],[neg,'#E74C3C']].forEach(([val,col])=>{if(val===0)return;
+if(val>=100){
+  const fc=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  fc.setAttribute("cx",c);fc.setAttribute("cy",c);
+  fc.setAttribute("r",r);fc.setAttribute("fill",col);
+  svg.appendChild(fc);st+=360;return;
+}
+const ang=(val/100)*360,end=st+ang;const rS=(st-90)*Math.PI/180,rE=(end-90)*Math.PI/180;const x1=c+r*Math.cos(rS),y1=c+r*Math.sin(rS),x2=c+r*Math.cos(rE),y2=c+r*Math.sin(rE);const lg=ang>180?1:0;const p=document.createElementNS("http://www.w3.org/2000/svg","path");p.setAttribute("d",`M ${c} ${c} L ${x1} ${y1} A ${r} ${r} 0 ${lg} 1 ${x2} ${y2} Z`);p.setAttribute("fill",col);p.setAttribute("stroke","white");p.setAttribute("stroke-width","3");svg.appendChild(p);st=end;});const ic=document.createElementNS("http://www.w3.org/2000/svg","circle");ic.setAttribute("cx",c);ic.setAttribute("cy",c);ic.setAttribute("r",inn);ic.setAttribute("fill","#f0f6ff");svg.appendChild(ic);
 const items=[{n:'긍정',p:pos,c:'#2ECC71'},{n:'중립',p:neu,c:'#8E9CC5'},{n:'부정',p:neg,c:'#E74C3C'}];const top=items.reduce((m,i)=>i.p>m.p?i:m,items[0]);
 document.getElementById(cid).innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;height:100%"><div class="market-donut">${svg.outerHTML}<div class="donut-center"><span class="pulse-num" style="font-size:26px;color:${top.c};">${Math.round(top.p)}%</span><span style="font-size:11px;color:var(--sub);margin-top:2px;">${top.n}</span></div></div><div class="market-legend">${items.map(i=>`<span class="leg-item"><span class="leg-dot" style="background:${i.c};"></span>${i.n} ${Math.round(i.p)}%</span>`).join('')}</div></div>`;}
 // 섹터별 긍/부정 비율<data(.js): getSectorStack()가 계산>

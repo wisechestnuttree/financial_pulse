@@ -22,6 +22,12 @@ SECTOR_KO = {
     "Macro & Policy"   : "매크로/정책",
 }
 
+SECTOR_EN = {v: k for k, v in SECTOR_KO.items()}
+# 결과: { "IT/기술": "Tech", "금융": "Finance", ... }
+
+def translateSectorToEn(name: str) -> str:
+    return SECTOR_EN.get(name, name)
+
 def translateSector(name: str) -> str:
     return SECTOR_KO.get(name, name)
 

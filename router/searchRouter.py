@@ -27,7 +27,7 @@ from fastapi import APIRouter, HTTPException, Request
 
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from logs.logger import getLogger
-from router.commonFunc import ok, translateSector, getDocIds
+from router.commonFunc import ok, translateSector, getDocIds, translateSectorToEn
 
 logger   = getLogger("system")
 u_logger = getLogger("user")
@@ -52,13 +52,15 @@ def buildShouldFilter(keyword: str) -> dict:
     - ner.person  : 인물명 (term)
     - ner.region  : 지역/국가명 (term)
     """
+    sector_en = translateSectorToEn(keyword)
     return {
         "should": [
-            {"match": {"title"      : keyword}},
-            {"term" : {"keywords"   : keyword}},
-            {"term" : {"ner.company": keyword}},
-            {"term" : {"ner.person" : keyword}},
-            {"term" : {"ner.region" : keyword}},
+            {"match": {"title": keyword}},
+            {"term": {"keywords": keyword}},
+            {"term": {"ner.company": keyword}},
+            {"term": {"ner.person": keyword}},
+            {"term": {"ner.region": keyword}},
+            {"term": {"sector": sector_en}},
         ],
         "minimum_should_match": 1
     }

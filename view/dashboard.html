@@ -23,10 +23,13 @@
           <button id="searchBtn" class="search-btn">검색</button>
         </div>
         <div class="search-tags" id="searchTags">
-          <button class="search-tag">테슬라</button>
-          <button class="search-tag">금리</button>
-          <button class="search-tag">반도체</button>
-          <button class="search-tag">AI</button>
+          <button class="search-tag">IT/기술</button>
+          <button class="search-tag">금융</button>
+          <button class="search-tag">중공업/인프라</button>
+          <button class="search-tag">소비재/서비스</button>
+          <button class="search-tag">바이오/헬스</button>
+          <button class="search-tag">모빌리티</button>
+          <button class="search-tag">매크로/정책</button>
         </div>
       </div>
       <div class="sw-group" id="countrySwitch">
@@ -486,7 +489,7 @@ function bindEvents() {
   const closeOverlay = () => overlay.classList.remove('show');
   closeBtn?.addEventListener('click', closeOverlay);
   backBtn?.addEventListener('click', closeOverlay);
-  overlay?.addEventListener('click', e => { if (e.target === overlay) closeOverlay(); });
+
 }
 
 // ================================================================
