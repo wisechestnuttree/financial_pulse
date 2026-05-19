@@ -204,4 +204,4 @@ def run_collector(start_str=None, end_str=None):
 
 
 if __name__ == "__main__":
-    run_collector()
+    run_collector("2026-05-18")

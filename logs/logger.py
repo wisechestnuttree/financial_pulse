@@ -49,7 +49,7 @@ class ESHandler(logging.Handler):
                 , "level": record.levelname, "message": record.getMessage(), "extra": extra
             }
 
-            subject_index = f"fp-logs-{self.subject}"
+            subject_index = f"logs_{self.subject}"
 
             # 두 인덱스에 동시 저장
             actions = [

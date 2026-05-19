@@ -19,7 +19,7 @@ class ExportRequest(BaseModel):
     학습 데이터 내보내기 요청 모델
     - start_time : 내보낼 기간 시작
     - end_time   : 내보낼 기간 종료
-    → fp-logs-ml 에서 보정 완료 로그를 조회하여 JSONL 형식으로 반환
+    → logs_ml 에서 보정 완료 로그를 조회하여 JSONL 형식으로 반환
     """
     start_time: str
     end_time:   str

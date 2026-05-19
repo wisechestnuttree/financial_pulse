@@ -55,7 +55,7 @@ def buildShouldFilter(keyword: str) -> dict:
     sector_en = translateSectorToEn(keyword)
     return {
         "should": [
-            {"match": {"title": keyword}},
+            # {"match": {"title": keyword}},
             {"term": {"keywords": keyword}},
             {"term": {"ner.company": keyword}},
             {"term": {"ner.person": keyword}},

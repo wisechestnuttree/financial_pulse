@@ -37,7 +37,7 @@ def buildQuery(req: LogSearchRequest) -> dict:
 
 def searchLog(req: LogSearchRequest) -> dict:
     """
-    필터 조건으로 fp-logs-all 에서 로그 조회
+    필터 조건으로 logs_all 에서 로그 조회
     - level, subject, 시간 범위 필터
     - 최신순 정렬
     """

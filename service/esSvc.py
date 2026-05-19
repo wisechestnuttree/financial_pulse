@@ -19,7 +19,7 @@ logger = getLogger("system")
 #
 #     # 크롤링 종료 로그에서 crawl_cnt 조회
 #     log_result = es.search(
-#         index="fp-logs-crawl",
+#         index="logs_crawl",
 #         body={
 #             "query": {"bool": {"must": [
 #                 {"term":  {"extra.batch_id": batch_id}},
