@@ -436,7 +436,7 @@
     <button class="adm-nav-btn nav-btn" data-adm-page="es"><i class="fas fa-database"></i> ES 인덱스</button>
     <button class="adm-nav-btn nav-btn" data-adm-page="correction"><i class="fas fa-wand-magic-sparkles"></i> 데이터 보정</button>
     <div class="user-info">
-      <div class="user-email"><i class="fas fa-user-shield"></i> admin@financepulse.com</div>
+      <div class="user-email" id="adminEmailDisplay"><i class="fas fa-user-shield"></i></div>
       <button class="logout-btn" id="admLogoutBtn"><i class="fas fa-right-from-bracket"></i> 로그아웃</button>
     </div>
   </aside>
@@ -518,22 +518,19 @@
   </div>
 </div>
 
-<script>
-// 세션 자동 생성
-if (!localStorage.getItem('fp_session')) {
-  localStorage.setItem('fp_session', JSON.stringify({
-    email: 'admin@financepulse.com',
-    ts: Date.now()
-  }));
-}
-</script>
 <script src="js/core.js"></script>
+<script src="js/api.js"></script>
 <script src="js/admin.js"></script>
 <script>
-const _s = checkSession(true);
-if(_s) {
-  window.onload = function() { initAdminScreen(); };
-}
+window.onload = async function() {
+  const session = await checkSession(true);
+  if (!session) return;
+  const emailEl = document.getElementById('adminEmailDisplay');
+  if (emailEl && session.email) {
+    emailEl.innerHTML = `<i class="fas fa-user-shield"></i> ${session.email}`;
+  }
+  initAdminScreen();
+};
 
 function closeRecollectModal() {
   document.getElementById('recollectConfirmModal').classList.remove('show');

@@ -1,5 +1,5 @@
 from elasticsearch.helpers import scan
-from dataStorage.elasticSearch.es import getEs, NEWS_KO_IDX, NEWS_EN_IDX, ANALYZE_DATA_IDX
+from dataStorage.elasticSearch.es import getEs, NEWS_KO_IDX, NEWS_EN_IDX, ANALYZE_DATA_IDX, ALL_LOG_IDX
 from logs.logger import getLogger
 
 logger = getLogger("system")
@@ -134,8 +134,11 @@ def getIndexStatus() -> dict:
         {"name": "news_ko", "index": NEWS_KO_IDX},
         {"name": "news_en", "index": NEWS_EN_IDX},
         {"name": "analyze", "index": ANALYZE_DATA_IDX},
+        {"name": "logs_all", "index": ALL_LOG_IDX},
         {"name": "logs_crawl", "index": "logs_crawl"},
         {"name": "logs_ml", "index": "logs_ml"},
+        {"name": "logs_system", "index": "logs_system"},
+        {"name": "logs_user", "index": "logs_user"},
     ]
 
     result = []

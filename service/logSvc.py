@@ -18,10 +18,10 @@ def buildQuery(req: LogSearchRequest) -> dict:
     must = []
 
     if req.subject:
-        must.append({"term": {"subject": req.subject}})
+        must.append({"term": {"subject.keyword": req.subject}})
 
     if req.level:
-        must.append({"term": {"level": req.level}})
+        must.append({"term": {"level.keyword": req.level}})
 
     if req.start_time or req.end_time:
         time_range = {}
@@ -42,7 +42,7 @@ def searchLog(req: LogSearchRequest) -> dict:
     - 최신순 정렬
     """
     # subject에 따라 조회할 인덱스 결정
-    index = f"logs_{req.subject}" if req.subject else ALL_LOG_IDX
+    index = ALL_LOG_IDX
 
     logger.info("로그 조회 시작", extra={"action": "searchLog", "index": index, "keyword": req.keyword})
 

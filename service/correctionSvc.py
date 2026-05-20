@@ -25,7 +25,25 @@ def detectIrregular() -> dict:
             "size": 1000
         }
     )
-    docs = [hit["_source"] for hit in result["hits"]["hits"]]
+    docs = []
+    for hit in result["hits"]["hits"]:
+        source = hit["_source"]
+        doc_id = source.get("doc_id") or hit["_id"]
+
+        # news_ko → news_en 순으로 url 조회
+        url = None
+        for index in ["news_ko", "news_en"]:
+            try:
+                news_res = es.get(index=index, id=doc_id, _source=["url"])
+                url = news_res["_source"].get("url")
+                if url:
+                    break
+            except:
+                continue
+
+        source["url"] = url
+        docs.append(source)
+
     es.close()
 
     logger.info(f"비정형 감지 완료 ({len(docs)})", extra={"action": "detectIrregular"})

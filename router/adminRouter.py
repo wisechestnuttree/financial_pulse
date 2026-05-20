@@ -51,7 +51,7 @@ def logout(request: Request, response: Response):
         adminLogout(token)
 
     # 쿠키 삭제
-    response.delete_cookie("admin_session")
+    response.delete_cookie("admin_session", path="/", samesite="lax")
     return {"message": "로그아웃 완료"}
 
 
