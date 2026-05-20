@@ -52,12 +52,11 @@ async function apiLogin(email, password) {
     sessionStorage.setItem('fp_email', email);        // ← 추가
 
     // core.js의 checkSession()이 fp_session을 보므로 함께 저장
-    localStorage.setItem('fp_session', JSON.stringify({
-    email: email,
-    u_id : res.data.u_id,
-    role : res.data.role || 'user',
-    ts   : Date.now()
-}));
+    sessionStorage.setItem('fp_session', JSON.stringify({
+        email: email,
+        u_id : res.data.u_id,
+        ts   : Date.now()
+    }));
 
     return res.data;
 }
@@ -152,13 +151,4 @@ async function apiWithdraw() {
     await api('DELETE', '/membership/withdraw', { confirmed: true });
     sessionStorage.removeItem('fp_uid');
     location.replace('login.html');
-}
-
-// ================================================================
-// 관리자 인증 확인
-// GET /admin/me
-// ================================================================
-async function apiAdminMe() {
-    const res = await api('GET', '/admin/me');
-    return res.data;
 }

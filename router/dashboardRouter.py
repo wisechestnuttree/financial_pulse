@@ -412,19 +412,12 @@ def getDashboard(lang: str = "ko"):
     res_a, res_b, res_c, res_d, res_f, res_g = responses[:6]
 
     # ── 번호별 조립 ─────────────────────────────────────────────
-    # 1번 + 7번: 전체 분위기 + 시장 성향 (쿼리 A)
     tendency, market_tendency    = buildTendency(res_a)
-    # 2번: 오늘 기사량 1위 섹터 (쿼리 F)
     top_keyword = buildTopSector(res_f)
-    # 3번 + 4번: 긍정 1위 + 부정 1위 키워드 (쿼리 D)
     pos_keyword, neg_keyword     = buildPosNegKeyword(res_d, None, tendency["total"])
-    # 5번: 핫이슈 키워드 Top6 (쿼리 B)
     hot_issues                   = buildHotIssues(res_b, res_c)
-    # 6번 + 8번: 급등 분석 + 섹터별 성향 (쿼리 F, G)
     spike_analysis, sector_tendency = buildSpikeAndSector(res_f, res_g)
-    # 9번: 경제지표 (MariaDB)
     eco_indicators               = getEcoIndicators()
-    # 10번: 경제 일정 (CSV)
     eco_schedule                 = getEcoSchedule()
 
     logger.info("대시보드 조회 성공", extra={

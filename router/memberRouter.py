@@ -124,32 +124,10 @@ def logIn(req: LoginRequest, request: Request, response: Response):
             # 4. 성공 — 실패 기록 초기화 + 세션 저장
             cursor.execute("DELETE FROM loginFail WHERE u_id = %s", (u_id,))
             conn.commit()
-            request.session["u_id"] = u_id
+            request.session["u_id"]= u_id
 
-            from encryption.encBase import ADMIN_EMAIL
-            from encryption.encAuth import create_session
-            from fastapi.responses import JSONResponse
-
-            role = "admin" if req.email == ADMIN_EMAIL else "user"
-
-            logger.info("로그인 성공", extra={"action": "logIn", "u_id": u_id})
-
-            res = JSONResponse(
-                status_code=200,
-                content={"success": True, "message": "로그인 성공", "data": {"u_id": u_id, "role": role}}
-            )
-
-            if role == "admin":
-                token = create_session(req.email)
-                res.set_cookie(
-                    key="admin_session",
-                    value=token,
-                    httponly=True,
-                    samesite="lax",
-                    max_age=60 * 60 * 8,
-                )
-
-            return res
+        logger.info("로그인 성공", extra={"action": "logIn", "u_id": u_id})
+        return ok("로그인 성공", {"u_id": u_id})
 
     except HTTPException:
         raise
@@ -298,7 +276,6 @@ def findId(req: FindIdRequest):
 def findPw(req: FindPwRequest):
     conn = getConn()
     try:
-        cleaned_phone = re.sub(r"[-\s]", "", req.phone_num)
         with conn.cursor() as cursor:
             cursor.execute(
                 """
@@ -308,20 +285,15 @@ def findPw(req: FindPwRequest):
                   AND name      = %s
                   AND phone_num = %s
                 """,
-                (req.email, req.name, cleaned_phone)
+                (req.email, req.name, req.phone_num)
             )
             user = cursor.fetchone()
 
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="일치하는 정보가 없습니다."
-            )
-
-        result = findPassword(user["u_id"], req.email, conn)
-        if not result["success"]:
-            raise HTTPException(status_code=500, detail="처리 중 오류 발생")
-        conn.commit()
+        if user:
+            result = findPassword(user["u_id"], req.email, conn)
+            if not result["success"]:
+                raise HTTPException(status_code=500, detail="처리 중 오류 발생")
+            conn.commit()
 
         # 이메일 존재 여부 노출 방지
         return ok("가입한 이메일을 확인해 주세요. (임시 비밀번호가 발송되었습니다)")

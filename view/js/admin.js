@@ -1,7 +1,7 @@
 // admin.js
 // ── 누락된 상수 정의
-const ADM_SUBJECTS = ['전체','crawl','system','ml','user'];
-const ADM_LEVELS   = ['ALL','INFO','WARNING','ERROR','DEBUG'];
+const ADM_SUBJECTS = ['전체','크롤링','데이터관리','비정형수치','로그인'];
+const ADM_LEVELS   = ['ALL','INFO','WARN','ERROR','DEBUG','SUCCESS'];
 
 function _genLogs(n, subjectFilter){
   const subjects = subjectFilter && subjectFilter!=='전체' ? [subjectFilter] : ['크롤링','데이터관리','비정형수치','로그인'];
@@ -63,47 +63,12 @@ function _genLogs(n, subjectFilter){
   return logs.sort((a,b)=>b.timestamp.localeCompare(a.timestamp));
 }
 
-let _admLogs = [];
-
-// ── 실제 API에서 로그 로드
-async function _fetchAdminLogs(params = {}) {
-  const body = {
-    level      : params.level && params.level !== 'ALL' ? params.level : null,
-    subject    : params.subject && params.subject !== '전체' ? params.subject : null,
-    start_time : params.from || null,
-    end_time   : params.to || null,
-    keyword    : params.keyword || null,
-    size       : 200
-  };
-
-  // null 값 제거
-  Object.keys(body).forEach(key => body[key] === null && delete body[key]);
-
-  const res = await fetch(BASE_URL + '/logs/search', {
-    method     : 'POST',
-    headers    : { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body       : JSON.stringify(body)
-  });
-  const data = await res.json();
-  if (!res.ok || data.success === false) throw new Error(data.message || '로그 조회 실패');
-
-  const payload = data.data || data;
-  return (payload.logs || []).map((l, idx) => ({
-    id       : l.log_id || `LOG-${String(idx + 1).padStart(5, '0')}`,
-    timestamp: (l.timestamp || '').replace('T', ' ').slice(0, 19),
-    subject  : l.subject  || '',
-    level    : l.level    || 'INFO',
-    message  : l.message  || '',
-    raw      : JSON.stringify(l.extra || {})
-  }));
-}
-
+let _admLogs = _genLogs(120);
 let _tailInterval = null;
 
 // ── 레벨별 뱃지 HTML생성
 function _lvlBadge(lvl){
-  const m={'INFO':'log-info','WARN':'log-warn','WARNING':'log-warn','ERROR':'log-error','DEBUG':'log-debug','SUCCESS':'log-success'};
+  const m={'INFO':'log-info','WARN':'log-warn','ERROR':'log-error','DEBUG':'log-debug','SUCCESS':'log-success'};
   return `<span class="log-badge ${m[lvl]||'log-debug'}">${lvl}</span>`;
 }
 
@@ -119,10 +84,10 @@ function _filterLogs(logs, level, subject, keyword, from, to){
   });
 }
 
-// 로그 통계 계산
+// 로그 통계 계산 
 function _calcStats(logs){
   const total = logs.length;
-  const byLevel = {INFO:0,WARNING:0,ERROR:0,DEBUG:0};
+  const byLevel = {INFO:0,WARN:0,ERROR:0,DEBUG:0,SUCCESS:0};
   logs.forEach(l=>{ if(byLevel[l.level]!==undefined) byLevel[l.level]++; });
   return {total, ...byLevel};
 }
@@ -130,7 +95,7 @@ function _calcStats(logs){
 // ── 로그 뷰어 페이지 (탭, 필터 바, 통계 카드, 로그 테이블)
 function _renderLogPage(page){
   const main = document.getElementById('admMain');
-  const esLabel = {'전체':'전체 ES','crawl':'크롤링 ES','system':'시스템 ES','ml':'머신러닝 ES','user':'로그인 ES'};
+  const esLabel = {'전체':'전체 ES','크롤링':'크롤링 ES','데이터관리':'데이터관리 ES','비정형수치':'비정형수치 ES','로그인':'로그인 ES'};
 
   main.innerHTML = `
     <h2 style="font-size:20px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;">
@@ -180,7 +145,7 @@ function _renderLogPage(page){
       </div>
       <div style="overflow-x:auto;">
         <table class="adm-table" id="admLogTable">
-          <thead><tr><th>타임스탬프</th><th>주체</th><th>레벨</th><th>메시지</th></tr></thead>
+          <thead><tr><th style="width:44px;"></th><th>타임스탬프</th><th>주체</th><th>레벨</th><th>메시지</th></tr></thead>
           <tbody id="admLogBody"></tbody>
         </table>
       </div>
@@ -195,8 +160,8 @@ function _renderLogPage(page){
     document.getElementById('admStatsGrid').innerHTML = `
       <div class="adm-stat-card asc-info"><div class="asc-label">총 로그</div><div class="asc-val">${s.total.toLocaleString()}</div><div class="asc-sub">전체 기간</div></div>
       <div class="adm-stat-card asc-err"><div class="asc-label">ERROR</div><div class="asc-val">${s.ERROR}</div><div class="asc-sub">즉시 확인 필요</div></div>
-      <div class="adm-stat-card asc-warn"><div class="asc-label">WARNING</div><div class="asc-val">${s.WARNING}</div><div class="asc-sub">모니터링 필요</div></div>
-      <div class="adm-stat-card asc-ok"><div class="asc-label"> INFO/DEBUG</div><div class="asc-val">${s.INFO + s.DEBUG}</div><div class="asc-sub">정상 완료</div></div>
+      <div class="adm-stat-card asc-warn"><div class="asc-label">WARN</div><div class="asc-val">${s.WARN}</div><div class="asc-sub">모니터링 필요</div></div>
+      <div class="adm-stat-card asc-ok"><div class="asc-label">SUCCESS</div><div class="asc-val">${s.SUCCESS}</div><div class="asc-sub">정상 완료</div></div>
     `;
   }
 
@@ -215,52 +180,33 @@ function _renderLogPage(page){
     _renderStats(logs);
   }
 
-  async function _doFilter(){
+  function _doFilter(){
     const level   = document.getElementById('admLevelFilter').value;
     const subject = curEs==='전체' ? document.getElementById('admSubjectFilter').value : curEs;
     const kw      = document.getElementById('admKeyword').value.trim();
-    const from    = document.getElementById('admFromFilter').value;
-    const to      = document.getElementById('admToFilter').value;
-
-    // 한글 → 영문 변환
-    const esSubject = subject === '전체' ? null : subject;
-
-    // 항상 API 재호출 (레벨/주체/날짜/키워드 서버에서 필터링)
-    const logs = await _fetchAdminLogs({
-      subject: esSubject || null,
-      level  : level !== 'ALL' ? level : null,
-      from   : from || null,
-      to     : to   || null,
-      keyword: kw   || null,
-    });
-    _renderTable(logs);
+    const from    = document.getElementById('admFromFilter').value.replace('T',' ');
+    const to      = document.getElementById('admToFilter').value.replace('T',' ');
+    _renderTable(_filterLogs(_admLogs, level, subject, kw, from||null, to||null));
   }
 
-  document.getElementById('admEsTabs').addEventListener('click', async e=>{
-  const btn = e.target.closest('.adm-tab');
-  if(!btn) return;
-  document.querySelectorAll('.adm-tab').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  curEs = btn.dataset.es;
-  document.getElementById('admSubjectFilter').value = curEs;
+  document.getElementById('admEsTabs').addEventListener('click', e=>{
+    const btn = e.target.closest('.adm-tab');
+    if(!btn) return;
+    document.querySelectorAll('.adm-tab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    curEs = btn.dataset.es;
+    document.getElementById('admSubjectFilter').value = curEs;
+    _doFilter();
+  });
 
-  const esSubject = curEs === '전체' ? null : curEs;
-  const logs = await _fetchAdminLogs({ subject: esSubject });
-
-  _admLogs = logs;
-  _doFilter();
-});
-
-  document.getElementById('admSearchBtn').addEventListener('click', async () => _doFilter());
-  document.getElementById('admResetBtn').addEventListener('click', async ()=>{
-  ['admLevelFilter','admSubjectFilter'].forEach(id=>document.getElementById(id).value=id.includes('Level')?'ALL':'전체');
-  ['admKeyword','admFromFilter','admToFilter'].forEach(id=>document.getElementById(id).value='');
-  curEs='전체';
-  document.querySelectorAll('.adm-tab').forEach((b,i)=>{b.classList.toggle('active',i===0);});
-  const logs = await _fetchAdminLogs();
-  _admLogs = logs;
-  _doFilter();
-});
+  document.getElementById('admSearchBtn').addEventListener('click', _doFilter);
+  document.getElementById('admResetBtn').addEventListener('click', ()=>{
+    ['admLevelFilter','admSubjectFilter'].forEach(id=>document.getElementById(id).value=id.includes('Level')?'ALL':'전체');
+    ['admKeyword','admFromFilter','admToFilter'].forEach(id=>document.getElementById(id).value='');
+    curEs='전체';
+    document.querySelectorAll('.adm-tab').forEach((b,i)=>{b.classList.toggle('active',i===0);});
+    _doFilter();
+  });
   document.getElementById('admKeyword').addEventListener('keydown', e=>{ if(e.key==='Enter') _doFilter(); });
 
   document.getElementById('admExportBtn').addEventListener('click', ()=>{
@@ -350,44 +296,24 @@ function _renderRealtimePage(){
 }
 
 // ── 크롤링 관리 페이지 (오류 로그 테이블, 재시도 버튼)
-async function _renderCrawlerPage() {
+function _renderCrawlerPage() {
   const main = document.getElementById('admMain');
-
-  main.innerHTML = `<div style="padding:40px;text-align:center;color:var(--sub);"><i class="fas fa-spinner fa-spin"></i> 불러오는 중...</div>`;
-
-  // 통계 카드 — GET /crawl/summary
-  let summary = { total: 0, error: 0, warning: 0, latest: null };
-  try {
-    const res = await fetch(BASE_URL + '/crawl/summary', {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await res.json();
-    if (data.success !== false) summary = data.data || data;
-  } catch(e) { console.warn('crawl summary 실패:', e); }
-
-  // 오류 로그 — subject=crawl 전체 로그
-  let crawlLogs = [];
-  try {
-    crawlLogs = await _fetchAdminLogs({ subject: 'crawl' });
-  } catch(e) { console.warn('crawl logs 실패:', e); }
-
-  const lastRun = summary.latest ? summary.latest.replace('T', ' ').slice(0, 16) : '-';
-  const errorLogs = crawlLogs.filter(l => l.level === 'ERROR' || l.level === 'WARN' || l.level === 'WARNING');
-
+  const crawlLogs = _filterLogs(_admLogs, 'ALL', '크롤링', '', '', '');
+  const stats = _calcStats(crawlLogs);
+  
   main.innerHTML = `
     <h2 style="font-size:20px;font-weight:900;color:var(--navy);display:flex;align-items:center;gap:10px;">
       <i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 스케줄러 관리
     </h2>
     <div class="adm-stats-grid">
-      <div class="adm-stat-card asc-info"><div class="asc-label">총 로그</div><div class="asc-val">${summary.total}</div></div>
-      <div class="adm-stat-card asc-err"><div class="asc-label">ERROR</div><div class="asc-val">${summary.error}</div><div class="asc-sub">재시도 대상</div></div>
-      <div class="adm-stat-card asc-warn"><div class="asc-label">WARN</div><div class="asc-val">${summary.warning}</div></div>
-      <div class="adm-stat-card asc-ok"><div class="asc-label">마지막 실행</div><div class="asc-val" style="font-size:14px;">${lastRun}</div><div class="asc-sub">최근 로그 기준</div></div>
+      <div class="adm-stat-card asc-info"><div class="asc-label">총 로그</div><div class="asc-val">${stats.total}</div></div>
+      <div class="adm-stat-card asc-err"><div class="asc-label">ERROR</div><div class="asc-val">${stats.ERROR}</div><div class="asc-sub">재시도 대상</div></div>
+      <div class="adm-stat-card asc-warn"><div class="asc-label">WARN</div><div class="asc-val">${stats.WARN}</div></div>
+      <div class="adm-stat-card asc-ok"><div class="asc-label">마지막 실행</div><div class="asc-val" style="font-size:16px;">04:00</div><div class="asc-sub">오늘 정상완료</div></div>
     </div>
     <div class="adm-log-wrap">
       <div class="adm-log-toolbar">
-        <div class="alt-title"><i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 로그 (오류 우선) <span style="font-size:12px;color:var(--sub);font-weight:600;">(${errorLogs.length}건)</span></div>
+        <div class="alt-title"><i class="fas fa-spider" style="color:var(--teal);"></i> 크롤링 로그 (오류 우선)</div>
         <div class="alt-actions">
           <button class="adm-btn adm-btn-primary" id="openErrorRetryBtn"><i class="fas fa-rotate-right"></i> 오류 재시도</button>
         </div>
@@ -395,22 +321,22 @@ async function _renderCrawlerPage() {
       <div style="overflow-x:auto;">
         <table class="adm-table">
           <thead>
-            <tr><th>타임스탬프</th><th>레벨</th><th>메시지</th></tr>
+            <tr><th></th><th>타임스탬프</th><th>레벨</th><th>메시지</th></tr>
           </thead>
           <tbody>
-            ${errorLogs.length ? errorLogs.slice(0, 50).map(l => `
+            ${crawlLogs.filter(l => l.level === 'ERROR' || l.level === 'WARN').slice(0, 50).map(l => `
               <tr>
                 <td style="white-space:nowrap;font-family:monospace;font-size:11.5px;">${l.timestamp}</td>
                 <td>${_lvlBadge(l.level)}</td>
                 <td class="log-msg">${l.message}</td>
               </tr>
-            `).join('') : '<tr><td colspan="3" style="text-align:center;padding:30px;color:var(--sub);">오류 로그가 없습니다.</td></tr>'}
+            `).join('')}
           </tbody>
-        </table>
+        <table>
       </div>
     </div>
   `;
-
+  
   const retryBtn = document.getElementById('openErrorRetryBtn');
   if (retryBtn) {
     retryBtn.addEventListener('click', openErrorRetryModal);
@@ -418,24 +344,25 @@ async function _renderCrawlerPage() {
 }
 
 // ES 인덱스 관리: 인덱스 현황, 누락 URL 목록, 재수집 버튼
-async function _renderEsPage(){
+function _renderEsPage(){
   const main = document.getElementById('admMain');
 
-  main.innerHTML = `<div style="padding:40px;text-align:center;color:var(--sub);"><i class="fas fa-spinner fa-spin"></i> 불러오는 중...</div>`;
+  // 누락 URL 데이터 (필요에 따라 배열에 추가)
+  const missingUrls = [
+    { url: "https://n.news.naver.com/article/055/0001234567", title: "원달러 환율 급등", country: "KR", status: "404", statusClass: "log-error" },
+    { url: "https://n.news.naver.com/article/030/0009999999", title: "코스닥 급락", country: "KR", status: "대기", statusClass: "log-warn" }
+  ];
 
-  // 실제 API 호출 — GET /es/status
-  let indices = [];
-  try {
-    const res = await fetch(BASE_URL + '/es/status', {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await res.json();
-    indices = (data.data || data).indices || [];
-  } catch(e) { console.warn('ES status 실패:', e); }
-
-  // missing_cnt > 0 인 인덱스만 누락 URL 섹션 표시
-  const missingIndices = indices.filter(idx => idx.missing_cnt > 0);
+  // 누락 URL 목록 테이블의 행 HTML 동적 생성
+  const missingRowsHtml = missingUrls.map(item => `
+    <tr data-url="${item.url}" data-title="${item.title.replace(/"/g, '&quot;')}" data-country="${item.country}">
+      <td class="log-msg" style="word-break: break-all;">${item.url}</td>
+      <td>${item.title}</td>
+      <td>${item.country}</td>
+      <td class="status-cell"><span class="log-badge ${item.statusClass}">${item.status}</span></td>
+      <td><button class="adm-btn adm-btn-ghost retry-missing-btn" style="font-size:11px;">재시도</button></td>
+    </tr>
+  `).join('');
 
   main.innerHTML = `
     <div class="page-title">
@@ -457,22 +384,46 @@ async function _renderEsPage(){
             </tr>
           </thead>
           <tbody>
-            ${indices.map(idx => `
-              <tr>
-                <td><strong>${idx.index}</strong></td>
-                <td>${idx.total.toLocaleString()}</td>
-                <td>${idx.crawl_cnt ?? '-'}</td>
-                <td>${idx.save_cnt ?? '-'}</td>
-                <td style="color:${idx.missing_cnt > 0 ? 'var(--neg)' : 'inherit'};font-weight:${idx.missing_cnt > 0 ? '800' : 'normal'};">${idx.missing_cnt}</td>
-                <td><span class="log-badge ${idx.status === '누락감지' ? 'log-warn' : 'log-success'}">${idx.status}</span></td>
-                <td>${idx.missing_cnt > 0 ? `<button class="adm-btn adm-btn-primary recollect-btn" data-index="${idx.index}" data-missing="${idx.missing_cnt}" style="font-size:11px;">재수집</button>` : ''}</td>
-              </tr>
-            `).join('')}
+            <tr>
+              <td><strong>newsStorage</strong></td>
+              <td>284,320</td>
+              <td>312</td>
+              <td>308</td>
+              <td style="color:var(--neg);font-weight:800;">4</td>
+              <td><span class="log-badge log-warn">누락감지</span></td>
+              <td><button class="adm-btn adm-btn-primary recollect-btn" data-index="newsStorage" data-missing="4" style="font-size:11px;">재수집</button></td>
+            </tr>
+            <tr>
+              <td><strong>crawlLogs</strong></td>
+              <td>48,200</td>
+              <td>-</td>
+              <td>-</td>
+              <td>0</td>
+              <td><span class="log-badge log-success">정상</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><strong>dataLogs</strong></td>
+              <td>24,100</td>
+              <td>-</td>
+              <td>-</td>
+              <td>0</td>
+              <td><span class="log-badge log-success">정상</span></td>
+              <td></td>
+            </tr>
+            <tr>
+              <td><strong>mlLogs</strong></td>
+              <td>7,280</td>
+              <td>-</td>
+              <td>-</td>
+              <td>0</td>
+              <td><span class="log-badge log-success">정상</span></td>
+              <td></td>
+            </tr>
           </tbody>
         </table>
       </div>
     </div>
-    ${missingIndices.length > 0 ? `
     <div class="adm-log-wrap" style="margin-top:20px;">
       <div class="adm-log-toolbar"><div class="alt-title">누락 URL 목록</div></div>
       <div style="overflow-x:auto;">
@@ -486,28 +437,43 @@ async function _renderEsPage(){
               <th style="width:10%">액션</th>
             </tr>
           </thead>
-          <tbody id="missingUrlTableBody"></tbody>
+          <tbody id="missingUrlTableBody">
+            ${missingRowsHtml}
+          </tbody>
         </table>
       </div>
-    </div>` : ''}
+    </div>
   `;
 
-  // 재수집 버튼 이벤트
+  // 인덱스 재수집 버튼 이벤트 (기존과 동일)
   document.querySelectorAll('.recollect-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
       const missingCount = btn.getAttribute('data-missing') || '0';
       const indexName = btn.getAttribute('data-index');
       showRecollectConfirmModal(missingCount, indexName);
     });
   });
+
+  // 개별 URL 재시도 버튼 이벤트 (동적으로 생성된 모든 버튼에 대해)
+  document.querySelectorAll('.retry-missing-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      const row = btn.closest('tr');
+      const url = row.getAttribute('data-url');
+      const title = row.getAttribute('data-title');
+      const country = row.getAttribute('data-country');
+      const statusCell = row.querySelector('.status-cell');
+      await retryMissingUrl(btn, url, title, country, statusCell);
+    });
+  });
 }
+
 
 // 재수집 확인 모달 열기
 function showRecollectConfirmModal(missingCount, indexName) {
   const modal = document.getElementById('recollectConfirmModal');
   const msgSpan = document.getElementById('recollectMessage');
   msgSpan.innerText = `누락 ${missingCount}건 재수집을 시작하시겠습니까?\n인덱스: ${indexName}`;
-
+  
   // 확인 버튼 이벤트 (기존 리스너 제거 후 재등록)
   const confirmBtn = document.getElementById('recollectConfirmBtn');
   const newConfirm = confirmBtn.cloneNode(true);
@@ -532,7 +498,7 @@ function showRecollectConfirmModal(missingCount, indexName) {
 async function startRecollect(indexName, missingCount) {
   // 1. 사용자에게 진행 중 표시 (토스트 또는 로딩)
   showToast(`🔄 ${indexName} 인덱스 재수집 시작 (${missingCount}건) ...`);
-
+  
   // 2. 백엔드 API 호출 (실제 구현 시 URL 수정)
   try {
     // 예시: POST /api/recollect
@@ -662,10 +628,10 @@ function openConfirmCorrectionModal() {
 }
 
 function showConfirmModal(action, onConfirm, isDelete = false) {
-  const msg = isDelete
+  const msg = isDelete 
     ? `정말 "${currentCorrectionItem.title}" 항목을 삭제하시겠습니까?`
     : `현재 성향을 "${action}"(으)로 변경하시겠습니까?`;
-
+  
   // 기존 tendencyConfirmModal 재사용 (또는 새로 생성)
   let confirmModal = document.getElementById('tendencyConfirmModal');
   if (!confirmModal) {
@@ -719,109 +685,75 @@ function showConfirmModal(action, onConfirm, isDelete = false) {
 }
 
 // 성향 변경 적용(테이블 업데이트)
-async function applyCorrection(row, newTendency) {
+function applyCorrection(row, newTendency) {
   if (!row) return;
+  const tendencyCell = row.cells[3];
+  tendencyCell.innerHTML = `<span class="log-badge ${getTendencyClass(newTendency)}">${newTendency}</span>`;
+  row.setAttribute('data-tendency', newTendency);
 
-  const doc_id   = row.getAttribute('data-id');
-  const tendMap  = { '긍정': 'positive', '중립': 'neutral', '부정': 'negative' };
-  const scoreMap = { '긍정': 85, '중립': 50, '부정': 15 };
-  const tendency  = tendMap[newTendency] || 'neutral';
-  const tendScore = scoreMap[newTendency] || 50.0;
+  // 점수 랜덤 조정 (긍정 75~95, 중립 40~60, 부정 5~25)
+  let newScore = '50.0';
+  if (newTendency === '긍정') newScore = (Math.random() * 20 + 75).toFixed(1);
+  else if (newTendency === '부정') newScore = (Math.random() * 20 + 5).toFixed(1);
+  else if (newTendency === '중립') newScore = (Math.random() * 20 + 40).toFixed(1);
 
-  try {
-    const res = await fetch(BASE_URL + '/correction/apply', {
-      method     : 'POST',
-      headers    : { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body       : JSON.stringify({ doc_id, tendency, tend_score: tendScore })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error('보정 실패');
+  const scoreCell = row.cells[2];
+  scoreCell.innerHTML = newScore;
+  scoreCell.style.color = getScoreColor(newScore);
+  row.setAttribute('data-score', newScore);
 
-    // UI 업데이트
-    row.cells[3].innerHTML = `<span class="log-badge ${getTendencyClass(newTendency)}">${newTendency}</span>`;
-    row.setAttribute('data-tendency', newTendency);
-    row.cells[2].innerHTML = tendScore.toFixed(1);
-    row.cells[2].style.color = getScoreColor(tendScore.toFixed(1));
-    row.setAttribute('data-score', tendScore.toFixed(1));
-
-    showToast(`✅ ${row.getAttribute('data-title')} → ${newTendency}로 변경되었습니다.`);
-  } catch(e) {
-    showToast(`❌ 보정 실패: ${e.message}`);
-  }
+  showToast(`${row.getAttribute('data-title')} → ${newTendency}로 변경되었습니다.`);
 }
 
 // 삭제 확인 모달 열기
 function openDeleteConfirmModal() {
   const modal = document.getElementById('deleteConfirmModal');
   if (!modal) return;
-
+  
   document.getElementById('deleteItemTitle').innerText = currentCorrectionItem.title;
-
+  
   const confirmBtn = document.getElementById('deleteConfirmOk');
   const newConfirmBtn = confirmBtn.cloneNode(true);
   confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
-  newConfirmBtn.onclick = async () => {
-    try {
-      const res = await fetch(BASE_URL + `/correction/article/${currentCorrectionItem.id}`, {
-        method: 'DELETE',
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (!res.ok || data.success === false) throw new Error(data.message || '삭제 실패');
-      if (currentCorrectionRow) currentCorrectionRow.remove();
-      modal.classList.remove('show');
-      showToast(`✅ ${currentCorrectionItem.title} 항목이 삭제되었습니다.`);
-      currentCorrectionItem = null;
-      currentCorrectionRow = null;
-    } catch(e) {
-      showToast(`❌ 삭제 실패: ${e.message}`);
-    }
+  newConfirmBtn.onclick = () => {
+    if (currentCorrectionRow) currentCorrectionRow.remove();
+    modal.classList.remove('show');
+    showToast(`${currentCorrectionItem.title} 항목이 삭제되었습니다.`);
+    currentCorrectionItem = null;
+    currentCorrectionRow = null;
   };
-
+  
   const cancelBtn = document.getElementById('deleteConfirmCancel');
   const newCancelBtn = cancelBtn.cloneNode(true);
   cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
   newCancelBtn.onclick = () => {
     modal.classList.remove('show');
   };
-
+  
   modal.classList.add('show');
 }
 
 // ── 데이터 보정 페이지 (검토 필요 항목 테이블, 수정 버튼)
-async function _renderCorrectionPage() {
+function _renderCorrectionPage() {
   const main = document.getElementById('admMain');
-
-  main.innerHTML = `<div style="padding:40px;text-align:center;color:var(--sub);"><i class="fas fa-spinner fa-spin"></i> 불러오는 중...</div>`;
-
-  // 실제 API 호출 — GET /correction/detect
-  let reviewItems = [];
-  try {
-    const res = await fetch(BASE_URL + '/correction/detect', {
-      method: 'GET',
-      credentials: 'include',
-    });
-    const data = await res.json();
-    const docs = (data.data || data).docs || [];
-    reviewItems = docs.map(d => ({
-      id      : d.doc_id,
-      title   : d.title,
-      url     : d.url || '-',
-      score: d.tend_score.toFixed(4),
-      tendency: d.tendency === 'positive' ? '긍정' : d.tendency === 'negative' ? '부정' : '중립',
-    }));
-  } catch(e) { console.warn('correction detect 실패:', e); }
+  
+  const reviewItems = [
+    { id: 1, title: "반도체 급등 이유는?", url: "https://n.news.naver.com/article/082/0001234567", score: "98.7", tendency: "매우긍정" },
+    { id: 2, title: "AI 주가 폭락 우려", url: "https://n.news.naver.com/article/082/0009876543", score: "2.1", tendency: "매우부정" },
+    { id: 3, title: "금리 인하 가능성", url: "https://n.news.naver.com/article/082/0005555555", score: "65.4", tendency: "중립" },
+    { id: 4, title: "2차전지 특허 분쟁", url: "https://n.news.naver.com/article/082/0001111111", score: "82.3", tendency: "긍정" },
+    { id: 5, title: "환율 급등 영향", url: "https://n.news.naver.com/article/082/0002222222", score: "23.7", tendency: "부정" }
+  ];
 
   main.innerHTML = `
     <div class="page-title">
       <i class="fas fa-wand-magic-sparkles"></i> 데이터 보정 (비정형 성향치)
     </div>
     <div class="adm-stats-grid">
-      <div class="adm-stat-card asc-warn"><div class="asc-label">감지건수</div><div class="asc-val">${reviewItems.length}</div><div class="asc-sub">비정형 감지</div></div>
-      <div class="adm-stat-card asc-ok"><div class="asc-label">자동보정</div><div class="asc-val">-</div><div class="asc-sub">자동 처리됨</div></div>
+      <div class="adm-stat-card asc-warn"><div class="asc-label">감지건수</div><div class="asc-val">${reviewItems.length}</div><div class="asc-sub">오늘 03:00 배치</div></div>
+      <div class="adm-stat-card asc-ok"><div class="asc-label">자동보정</div><div class="asc-val">4</div><div class="asc-sub">자동 처리됨</div></div>
       <div class="adm-stat-card asc-err"><div class="asc-label">검토필요</div><div class="asc-val">${reviewItems.length}</div><div class="asc-sub">관리자 확인 필요</div></div>
-      <div class="adm-stat-card asc-info"><div class="asc-label">학습데이터 누적</div><div class="asc-val">-</div><div class="asc-sub">재학습 대기</div></div>
+      <div class="adm-stat-card asc-info"><div class="asc-label">학습데이터 누적</div><div class="asc-val">1,284</div><div class="asc-sub">재학습 대기</div></div>
     </div>
     <div class="adm-log-wrap">
       <div class="adm-log-toolbar">
@@ -850,29 +782,31 @@ async function _renderCorrectionPage() {
   `;
 
   document.querySelectorAll('.edit-correction-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
       const row = btn.closest('tr');
-      const id = btn.getAttribute('data-id');
+      const id = parseInt(btn.getAttribute('data-id'));
       const title = row.getAttribute('data-title');
       const url = row.getAttribute('data-url');
       const score = row.getAttribute('data-score');
       const currentTendency = row.getAttribute('data-tendency');
+      
       currentCorrectionItem = { id, title, url, score, currentTendency };
       currentCorrectionRow = row;
-      openConfirmCorrectionModal();
+      
+      openConfirmCorrectionModal();  // 성향 변경 모달 (긍정/중립/부정 선택)
     });
   });
-
+  
   const refreshBtn = document.getElementById('refreshCorrectionBtn');
   if (refreshBtn) {
-    refreshBtn.addEventListener('click', () => { _renderCorrectionPage(); });
+    refreshBtn.addEventListener('click', () => { location.reload(); });
   }
 }
+
 // 사이드바 버튼 클릭 시 해당 렌더 함수 호출
 function _admRoute(page){
   if(_tailInterval){ clearInterval(_tailInterval); _tailInterval=null; }
   document.querySelectorAll('.adm-nav-btn').forEach(b=>b.classList.toggle('active', b.dataset.admPage===page));
-  sessionStorage.setItem('admCurrentPage', page);
   switch(page){
     case 'logs':       _renderLogPage(page); break;
     case 'crawler':    _renderCrawlerPage(); break;
@@ -884,30 +818,18 @@ function _admRoute(page){
 
 // 초기화: 로그 뷰어 로드, 네비게이션 이벤트, 모달 닫기
 function initAdminScreen() {
-  _fetchAdminLogs().then(logs => {
-    _admLogs = logs;
-    const savedPage = sessionStorage.getItem('admCurrentPage') || 'logs';
-    _admRoute(savedPage);
-  }).catch(() => {
-    _admLogs = [];
-    _admRoute('logs');
-  });
-
+  _admLogs = _genLogs(120);
+  _admRoute('logs');
+  
   document.querySelectorAll('.adm-nav-btn').forEach(btn => {
     btn.addEventListener('click', () => _admRoute(btn.dataset.admPage));
   });
-
-  document.getElementById('admLogoutBtn').addEventListener('click', async () => {
-  if (_tailInterval) { clearInterval(_tailInterval); _tailInterval = null; }
-  try {
-    await fetch(BASE_URL + '/admin/logout', { method: 'POST', credentials: 'include' });
-    await fetch(BASE_URL + '/membership/logout', { method: 'POST', credentials: 'include' });
-  } catch(e) {}
-  localStorage.removeItem('fp_session');
-  sessionStorage.removeItem('fp_session');
-  sessionStorage.removeItem('admCurrentPage');
-  location.replace('login.html');
-});
+  
+  document.getElementById('admLogoutBtn').addEventListener('click', () => {
+    if (_tailInterval) { clearInterval(_tailInterval); _tailInterval = null; }
+    localStorage.removeItem('fp_session');
+    location.replace('login.html');
+  });
 
   // ========== 모달 배경 클릭 시 닫기 ==========
   

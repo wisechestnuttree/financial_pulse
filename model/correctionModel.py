@@ -10,8 +10,8 @@ class CorrectionRequest(BaseModel):
     → analyze 인덱스 + search 인덱스 동시 업데이트
     → 로그 기록
     """
-    doc_id: str
-    tendency: Literal["positive", "negative", "neutral"]
+    doc_id:     str
+    tendency:   Literal["긍정", "부정", "중립"]
     tend_score: float
 
 class ExportRequest(BaseModel):
@@ -22,7 +22,7 @@ class ExportRequest(BaseModel):
     → logs_ml 에서 보정 완료 로그를 조회하여 JSONL 형식으로 반환
     """
     start_time: str
-    end_time: str
+    end_time:   str
 
 class DeleteRequest(BaseModel):
     doc_id: str

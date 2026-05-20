@@ -47,10 +47,6 @@ from router.keywordRouter import router as keywordRouter
 from router.spikeRouter import router as spikeRouter
 from router.searchRouter import router as searchRouter
 from router.adminRouter import router as adminRouter
-from router.logRouter import router as logRouter
-from router.crawlRouter import router as crawlRouter
-from router.esRouter import router as esRouter
-from router.correctionRouter import router as correctionRouter
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
@@ -111,9 +107,5 @@ app.include_router(keywordRouter)
 app.include_router(spikeRouter)
 app.include_router(searchRouter)
 app.include_router(adminRouter)
-app.include_router(logRouter)
-app.include_router(crawlRouter)
-app.include_router(esRouter)
-app.include_router(correctionRouter)
 
 app.mount("/", StaticFiles(directory="view"), name="static")
