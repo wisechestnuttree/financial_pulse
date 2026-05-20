@@ -1,0 +1,13 @@
+{
+    "model_name": "sector_v1",
+    "train_date": "2026-05-06 18:42:11",
+    "classes": [
+        "Consumer",
+        "Finance",
+        "Healthcare",
+        "Industry",
+        "Macro & Policy",
+        "Mobility",
+        "Tech"
+    ]
+}
