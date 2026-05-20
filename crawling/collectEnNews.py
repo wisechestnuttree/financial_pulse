@@ -238,6 +238,7 @@ def run_collector(start_str=None, end_str=None):
                 t.join()
 
         # 모든 스레드 종료 후 최종 가드레일 통계 리포트 출력
+        logger.info(f"================ [{target_day}] 수집 프로세스 최종 리포트 ================")
         logger.info(f" 총 분석 대상 기사 : {stats['total_target']} 건")
         logger.info(f" 최종 적재 성공 : {stats['success']} 건")
         logger.info(f" 가드레일 필터링 내역:")

@@ -1,9 +1,10 @@
+import queue
 import re
 import warnings
 import time
 import threading
 from datetime import datetime, timedelta, timezone
-from concurrent.futures import ThreadPoolExecutor
+from urllib.parse import quote
 import requests
 from bs4 import BeautifulSoup
 from elasticsearch import Elasticsearch
@@ -29,26 +30,51 @@ TARGET_KEYWORDS = ["경제", "금융", "증시", "산업", "부동산"]
 KST = timezone(timedelta(hours=9))
 warnings.filterwarnings("ignore", category=parser.UnknownTimezoneWarning)
 
-total_processed_count = 0
+# 통계 집계용 전역 카운터 및 락 설정
 counter_lock = threading.Lock()
+stats = {
+    "total_target": 0,
+    "success": 0,
+    "skip_date_missing": 0,  # 날짜미달
+    "skip_date_parse_fail": 0,  # 날짜파싱실패
+    "skip_duplicate": 0,  # 중복기사
+    "skip_short_content": 0,  # 본문길이미달 (수집실패 포함)
+    "skip_invalid": 0  # 유효성탈락
+}
 
 
-# process_batch_ko 함수 내 적재 로직 수정
-def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected_at):
-    global total_processed_count
+def news_worker_ko(task_queue, thread_id, batch_collected_at, es):
+    """
+    미리 한국어 브라우저를 1개 켜두고, 큐가 빌 때까지
+    브라우저 종료 없이 driver.get()만 반복하는 작업자 스레드
+    """
+    time.sleep(thread_id * 2)
+    logger.info(f"[Thread-{thread_id}] 한국어 브라우저 인스턴스 초기화 및 가동 시작.")
+
     with managedDriver() as driver:
-        for item in targets:
+        while True:
             try:
-                # 1. 발행일 검증
+                # 큐에서 작업 가져오기 (비어있으면 바로 Empty 예외 발생 후 탈출)
+                item = task_queue.get_nowait()
+            except queue.Empty:
+                break
+
+            try:
+                # 1. 발행일 검증 (가드레일 1: 날짜미달)
                 raw_pub = item.get('pub_str', '').strip()
                 if not raw_pub or not re.search(r'\d{1,2}:\d{2}', raw_pub):
+                    with counter_lock:
+                        stats["skip_date_missing"] += 1
                     continue
 
+                # 날짜 파싱 (가드레일 1-2: 날짜파싱실패)
                 try:
                     parsed_dt = parser.parse(raw_pub)
                     parsed_dt = parsed_dt.replace(tzinfo=KST) if parsed_dt.tzinfo is None else parsed_dt.astimezone(KST)
                     published_at = parsed_dt.strftime('%Y-%m-%d %H:%M:%S')
                 except:
+                    with counter_lock:
+                        stats["skip_date_parse_fail"] += 1
                     continue
 
                 # 2. URL 및 타이틀 정규화
@@ -56,12 +82,15 @@ def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected
                 pure_title = item['title'].strip()
                 doc_id = generateHashId(pure_url, pure_title)
 
+                # 가드레일 2: 중복기사 (ES 존재 여부 체크)
                 if es.exists(index=INDEX_NAME, id=doc_id):
+                    with counter_lock:
+                        stats["skip_duplicate"] += 1
                     continue
 
                 # 3. 본문 수집
                 driver.get(item['url'])
-                time.sleep(1.2)  # 속도 조절
+                time.sleep(1.2)  # 페이지 로딩 대기 선언치 유지
 
                 source_type = item.get('source_type', 'hankyung')
                 selectors = {
@@ -77,11 +106,20 @@ def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected
                         content = elements[0].text.strip()
                         break
 
-                cleaned_content = KoNewsCleaner.clean(content)
-                if not cleaned_content or not KoNewsCleaner.isValid(cleaned_content, pure_title):
+                # 가드레일 3: 본문길이미달 (텍스트가 아예 없거나 너무 짧은 경우)
+                if not content or len(content.strip()) < 150:
+                    with counter_lock:
+                        stats["skip_short_content"] += 1
                     continue
 
-                # 4. 데이터 적재 (매핑에 정의된 7개 필드만 정확히 포함)
+                # 가드레일 4: 유효성탈락 (KoNewsCleaner 기준 미달)
+                cleaned_content = KoNewsCleaner.clean(content)
+                if not cleaned_content or not KoNewsCleaner.isValid(cleaned_content, pure_title):
+                    with counter_lock:
+                        stats["skip_invalid"] += 1
+                    continue
+
+                # 4. 데이터 적재 (모든 가드레일 통과 시)
                 doc = {
                     "doc_id": doc_id,
                     "url": pure_url,
@@ -92,24 +130,26 @@ def process_batch_ko(targets, thread_id, total_target_count, es, batch_collected
                     "collected_at": batch_collected_at
                 }
 
-                # 전송 시도
                 es.index(index=INDEX_NAME, id=doc_id, document=doc)
 
                 with counter_lock:
-                    total_processed_count += 1
-                    print(f"[KO] ({total_processed_count}/{total_target_count}) 성공: {pure_title[:20]}...")
+                    stats["success"] += 1
 
             except Exception as e:
-                # 에러 로그 확인용 (필요시 주석 해제)
-                # print(f"에러 발생: {e}")
-                continue
+                # 개별 기사 처리 중 터진 순수 시스템 예외/통신 에러만 개별 로그로 남김
+                logger.error(f"[Thread-{thread_id}] 기사 처리 중 예외 발생 (수집 스킵): {e}")
+            finally:
+                task_queue.task_done()
+
+    logger.info(f"[Thread-{thread_id}] 할당된 모든 한국어 큐 소진. 브라우저 종료.")
+
 
 def fetch_list(target_date):
     all_targets = []
-    print(f"--- {target_date} 목록 수집 시작 ---")
+    logger.info(f"--- {target_date} 목록 수집 시작 ---")
 
     # [1] 네이버 금융
-    print(f"[{target_date}] 네이버 금융 수집 중...")
+    logger.info(f"[{target_date}] 네이버 금융 목록 수집 중...")
     for page in range(1, 6):
         try:
             url = f"https://finance.naver.com/news/mainnews.naver?date={target_date}&page={page}"
@@ -127,14 +167,13 @@ def fetch_list(target_date):
                         "source_type": "naver"
                     })
         except Exception as e:
-            print(f"네이버 수집 에러 (Page {page}): {e}")
+            logger.error(f"네이버 수집 에러 (Page {page}): {e}")
             break
 
     # [2] 한국경제
-    print(f"[{target_date}] 한국경제 수집 중...")
+    logger.info(f"[{target_date}] 한국경제 목록 수집 중...")
     hk_date = target_date.replace("-", ".")
     for kw in TARGET_KEYWORDS:
-        print(f"  > 키워드 '{kw}' 검색 중...", end="\r")
         for page in range(1, 6):
             try:
                 url = (f"https://search.hankyung.com/search/news?query={kw}"
@@ -156,9 +195,10 @@ def fetch_list(target_date):
                             "source_type": "hankyung"
                         })
             except Exception as e:
-                print(f"한경 수집 에러 ({kw}, Page {page}): {e}")
+                logger.error(f"한경 수집 에러 ({kw}, Page {page}): {e}")
                 break
-    print(f"\n[{target_date}] 목록 수집 완료. 총 {len(all_targets)}건 발견.")
+
+    logger.info(f"[{target_date}] 목록 수집 완료. 총 {len(all_targets)}건 발견.")
     return all_targets
 
 
@@ -166,13 +206,13 @@ def run_standalone_ko(start_date=None, end_date=None):
     try:
         es = Elasticsearch(ES_URL)
         if not es.ping():
-            print("ES 서버에 연결할 수 없습니다. URL을 확인하세요.")
+            logger.critical("ES 서버에 연결할 수 없습니다. URL을 확인하세요.")
             return
     except Exception as e:
-        print(f"ES 연결 시도 중 에러: {e}")
+        logger.critical(f"ES 연결 시도 중 에러: {e}")
         return
 
-    global total_processed_count
+    global stats
     if not start_date: start_date = datetime.now(KST).strftime('%Y-%m-%d')
     if not end_date: end_date = start_date
 
@@ -181,9 +221,12 @@ def run_standalone_ko(start_date=None, end_date=None):
 
     curr = s_dt
     while curr <= e_dt:
+        # 매 날짜별 통계 데이터 초기화
+        for key in stats:
+            stats[key] = 0
+
         target_day = curr.strftime('%Y-%m-%d')
         batch_collected_at = datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
-        total_processed_count = 0
 
         raw_list = fetch_list(target_day)
 
@@ -195,20 +238,45 @@ def run_standalone_ko(start_date=None, end_date=None):
                 seen_titles.add(title_key)
                 unique_list.append(it)
 
-        total_len = len(unique_list)
-        print(f"[{target_day}] 중복 제거 후 최종 대상: {total_len}건")
+        stats["total_target"] = len(unique_list)
+        logger.info(f"[{target_day}] 중복 제거 후 최종 대상: {stats['total_target']}건")
 
         if unique_list:
-            chunk_size = (total_len // MAX_WORKERS) + 1
-            chunks = [unique_list[i:i + chunk_size] for i in range(0, total_len, chunk_size)]
-            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-                for i, chunk in enumerate(chunks):
-                    executor.submit(process_batch_ko, chunk, i, total_len, es, batch_collected_at)
+            # 1. 큐 객체 생성 및 데이터 탑재
+            task_queue = queue.Queue()
+            for target in unique_list:
+                task_queue.put(target)
 
-        print(f"--- {target_day} 작업 종료 ---")
+            # 2. 고정 스레드 풀 할당 및 가동
+            threads = []
+            for i in range(MAX_WORKERS):
+                t = threading.Thread(
+                    target=news_worker_ko,
+                    args=(task_queue, i, batch_collected_at, es)
+                )
+                threads.append(t)
+                t.start()
+
+            # 3. 큐 작업이 전부 빌 때까지 메인 스레드 동기화 대기
+            for t in threads:
+                t.join()
+
+        # [요청사항 반영] 하루 수집 완료 후 가드레일 통계 리포트 통합 출력
+        logger.info(f"================ [{target_day}] 한국어 수집 프로세스 최종 리포트 ================")
+        logger.info(f" 총 분석 대상 기사 : {stats['total_target']} 건")
+        logger.info(f" 최종 적재 성공 : {stats['success']} 건")
+        logger.info(f" 가드레일 필터링 내역:")
+        logger.info(f" [날짜 미달] : {stats['skip_date_missing']} 건")
+        logger.info(f" [날짜 파싱 실패] : {stats['skip_date_parse_fail']} 건")
+        logger.info(f" [중복 뉴스] : {stats['skip_duplicate']} 건")
+        logger.info(f" [본문 길이 미달] : {stats['skip_short_content']} 건")
+        logger.info(f" [텍스트 유효성 탈락] : {stats['skip_invalid']} 건")
+
+        logger.info(f"--- {target_day} 작업 종료 ---")
         curr += timedelta(days=1)
         time.sleep(2)
 
 
 if __name__ == "__main__":
+    # 다중 날짜 테스트도 안정적으로 지원합니다.
     run_standalone_ko("2026-05-11", "2026-05-18")
