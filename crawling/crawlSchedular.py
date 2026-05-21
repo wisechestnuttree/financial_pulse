@@ -23,8 +23,8 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
-from crawling.collectKoNews import run_standalone_ko
-from crawling.collectEnNews import run_collector
+from crawling.collectKoNews import runStandalone
+from crawling.collectEnNews import runCollector
 from crawling.collectEconomic import dailyJob
 from logs.logger import getLogger
 
@@ -80,17 +80,17 @@ def guarded(lock, job_name):
 # Wrapped Jobs
 # =========================
 @guarded(ko_lock, "KO Collector")
-def run_ko():
-    run_standalone_ko()
+def runKo():
+    runStandalone()
 
 
 @guarded(en_lock, "EN Collector")
-def run_en():
-    run_collector()
+def runEn():
+    runCollector()
 
 
 @guarded(eco_lock, "Economic Collector")
-def run_eco():
+def runEco():
     dailyJob()
 
 
@@ -101,7 +101,7 @@ scheduler = BackgroundScheduler(
     timezone=ZoneInfo("Asia/Seoul")
 )
 
-def add_jobs(test_mode=False):
+def addJobs(test_mode=False):
     job_defaults = {
         'trigger': 'cron',
         'max_instances': 1,
@@ -113,23 +113,23 @@ def add_jobs(test_mode=False):
     # KO 뉴스
     for t, label in [("07:30", "새벽"), ("11:30", "오전"), ("18:30", "초판"), ("23:59", "마감")]:
         h, m = map(int, t.split(":"))
-        scheduler.add_job(run_ko, hour=h, minute=m, id=f"ko_{label}", **job_defaults)
+        scheduler.add_job(runKo, hour=h, minute=m, id=f"ko_{label}", **job_defaults)
 
     # EN 뉴스
     for t, label in [("06:10", "장마감"), ("21:00", "개장전")]:
         h, m = map(int, t.split(":"))
-        scheduler.add_job(run_en, hour=h, minute=m, id=f"en_{label}", **job_defaults)
+        scheduler.add_job(runEn, hour=h, minute=m, id=f"en_{label}", **job_defaults)
 
     # 경제지표
-    scheduler.add_job(run_eco, hour=23, minute=30, id="eco_daily", **job_defaults)
+    scheduler.add_job(runEco, hour=23, minute=30, id="eco_daily", **job_defaults)
 
     # 2. 실시간 테스팅 모드 (실행 시 즉시 모든 작업 테스트)
     if test_mode:
         logger.info("testing: 3초 후 경제지표 → 10분 후 한국 → 30분 후 미국")
         now = datetime.now(ZoneInfo("Asia/Seoul"))
-        scheduler.add_job(run_eco, trigger='date', run_date=now + timedelta(seconds=3), id='test_eco')
-        scheduler.add_job(run_ko, trigger='date', run_date=now + timedelta(minutes=10), id='test_ko')
-        scheduler.add_job(run_en, trigger='date', run_date=now + timedelta(minutes=40), id='test_en')
+        scheduler.add_job(runEco, trigger='date', run_date=now + timedelta(seconds=3), id='test_eco')
+        scheduler.add_job(runKo, trigger='date', run_date=now + timedelta(minutes=10), id='test_ko')
+        scheduler.add_job(runEn, trigger='date', run_date=now + timedelta(minutes=40), id='test_en')
 
 
 
@@ -146,18 +146,16 @@ scheduler.add_listener(
 )
 
 
-def shutdown_handler(signum, frame):
+def shutdownHandler(signum, frame):
     logger.info("Scheduler shutting down...")
     scheduler.shutdown()
     sys.exit(0)
 
 
-signal.signal(signal.SIGINT, shutdown_handler)
-signal.signal(signal.SIGTERM, shutdown_handler)
-
-
 if __name__ == "__main__":
-    add_jobs(test_mode=True)
+    signal.signal(signal.SIGINT, shutdownHandler)
+    signal.signal(signal.SIGTERM, shutdownHandler)
+    addJobs(test_mode=True)
 
     logger.info("Financial Pulse Scheduler Started")
     scheduler.start()

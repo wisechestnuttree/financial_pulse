@@ -47,7 +47,7 @@ stats = {
     "skip_invalid": 0           # 유효성탈락
 }
 
-def newsWorker(task_queue, thread_id, total_target_count, batch_collected_at, es):
+def newsWorker(task_queue, thread_id, batch_collected_at, es):
     """
     미리 브라우저를 1개만 켜두고, 큐가 빌 때까지
     브라우저 종료 없이 driver.get()만 반복하는 작업자 스레드
@@ -163,7 +163,7 @@ def newsWorker(task_queue, thread_id, total_target_count, batch_collected_at, es
     logger.info(f"[Thread-{thread_id}] 할당된 모든 큐 소진. 브라우저 종료.", extra={"action": "newsWorker"})
 
 
-def run_collector(start_str=None, end_str=None):
+def runCollector(start_str=None, end_str=None):
     global stats
     is_today_mode = not start_str
     if is_today_mode:
@@ -252,4 +252,4 @@ def run_collector(start_str=None, end_str=None):
 
 
 if __name__ == "__main__":
-    run_collector("2026-05-18")
+    runCollector()

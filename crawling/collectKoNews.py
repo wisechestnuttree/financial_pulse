@@ -43,7 +43,7 @@ stats = {
 }
 
 
-def news_worker_ko(task_queue, thread_id, batch_collected_at, es):
+def newsWorker(task_queue, thread_id, batch_collected_at, es):
     """
     미리 한국어 브라우저를 1개 켜두고, 큐가 빌 때까지
     브라우저 종료 없이 driver.get()만 반복하는 작업자 스레드
@@ -144,7 +144,7 @@ def news_worker_ko(task_queue, thread_id, batch_collected_at, es):
     logger.info(f"[Thread-{thread_id}] 할당된 모든 한국어 큐 소진. 브라우저 종료.")
 
 
-def fetch_list(target_date):
+def fetchList(target_date):
     all_targets = []
     logger.info(f"--- {target_date} 목록 수집 시작 ---")
 
@@ -202,7 +202,7 @@ def fetch_list(target_date):
     return all_targets
 
 
-def run_standalone_ko(start_date=None, end_date=None):
+def runStandalone(start_date=None, end_date=None):
     try:
         es = Elasticsearch(ES_URL)
         if not es.ping():
@@ -228,7 +228,7 @@ def run_standalone_ko(start_date=None, end_date=None):
         target_day = curr.strftime('%Y-%m-%d')
         batch_collected_at = datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
 
-        raw_list = fetch_list(target_day)
+        raw_list = fetchList(target_day)
 
         seen_titles = set()
         unique_list = []
@@ -251,7 +251,7 @@ def run_standalone_ko(start_date=None, end_date=None):
             threads = []
             for i in range(MAX_WORKERS):
                 t = threading.Thread(
-                    target=news_worker_ko,
+                    target=newsWorker,
                     args=(task_queue, i, batch_collected_at, es)
                 )
                 threads.append(t)
@@ -279,4 +279,4 @@ def run_standalone_ko(start_date=None, end_date=None):
 
 if __name__ == "__main__":
     # 다중 날짜 테스트도 안정적으로 지원합니다.
-    run_standalone_ko("2026-05-11", "2026-05-18")
+    runStandalone()

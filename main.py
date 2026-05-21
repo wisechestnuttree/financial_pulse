@@ -54,7 +54,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from contextlib import asynccontextmanager
-from crawling.crawlSchedular import scheduler, add_jobs
+from crawling.crawlSchedular import scheduler, addJobs
 from dataStorage.elasticSearch.esIndex import createAllIndices
 from dataStorage.mariaDb.db import createTables
 
@@ -70,7 +70,7 @@ async def lifespan(app: FastAPI):
     # 스케줄러 시작
     # test_mode=False → 정기 스케줄만 등록
     # test_mode=True  → 즉시 테스트 실행
-    add_jobs(test_mode=False)
+    addJobs(test_mode=False)
     scheduler.start()
     print("[STARTUP] 스케줄러 시작 완료")
 
