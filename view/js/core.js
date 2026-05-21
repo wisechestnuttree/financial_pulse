@@ -120,7 +120,7 @@ function makeSplitCol(sectors, lbl, ids, cc) {
       <div id="${ids.hot}"></div>
     </div>
     <div class="panel trend-panel" style="padding:22px;">
-      <div class="ph"><div class="pt">📈 급등 성향 (${lbl})</div></div>
+      <div class="ph"><div class="pt">📈 오늘 섹터 성향 분석 (${lbl})</div></div>
       <div class="trend-list" id="${ids.trend}"></div>
     </div>
     <div class="panel sentiment-panel" style="padding:22px;">
@@ -330,13 +330,13 @@ async function openAnalysisOverlay(kw) {
             </div>
           </div>
           <div class="ao-score-box">
-            <span class="ao-score-lbl">🎯 종합 성향 점수 (0~1)</span>
+            <span class="ao-score-lbl">🎯 종합 성향 점수 (0~100)</span>
             <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
               <span class="ao-score-val">${score}</span>
               <span class="ao-score-badge" style="background:${pos>=60?'var(--pos-s)':pos<=40?'var(--neg-s)':'rgba(142,156,197,.12)'};color:${scoreCls};">${scoreLabel}</span>
             </div>
           </div>
-          <div style="margin-top:7px;font-size:11px;color:var(--sub);">* 0.6 이상 긍정, 0.4 이하 부정 기준</div>
+          <div style="margin-top:7px;font-size:11px;color:var(--sub);">* 50 이상 긍정, 50 미만 부정 기준</div>
         </div>
         <div class="ao-card" style="display:flex;flex-direction:column;">
           <div class="ao-card-title"><i class="fas fa-chart-bar"></i>연관 분야별 긍정/부정 비교</div>
@@ -398,7 +398,7 @@ async function openAnalysisOverlay(kw) {
         <div class="ao-news-meta">
           <span class="ao-nm-tag ${tagClass}">${tagText}</span>
           <span>📰 ${_esc(art.sector || '금융')}</span>
-          <span>🏷️ 점수: ${(art.tend_score ?? 0).toFixed(2)}</span>
+          <span>🏷️ 점수: ${(art.tend_score ?? art.score ?? 0).toFixed(1)}</span>
         </div>
       `;
       card.addEventListener('click', () => { if(art.url) window.open(art.url, '_blank'); });

@@ -215,51 +215,55 @@ function _renderLogPage(page){
     _renderStats(logs);
   }
 
-  async function _doFilter(){
-    const level   = document.getElementById('admLevelFilter').value;
-    const subject = curEs==='전체' ? document.getElementById('admSubjectFilter').value : curEs;
-    const kw      = document.getElementById('admKeyword').value.trim();
-    const from    = document.getElementById('admFromFilter').value;
-    const to      = document.getElementById('admToFilter').value;
+  async function _doFilter() {
+  const level   = document.getElementById('admLevelFilter').value;
+  const subject = document.getElementById('admSubjectFilter').value; // ← 항상 드롭다운만 사용
+  const kw      = document.getElementById('admKeyword').value.trim();
+  const from    = document.getElementById('admFromFilter').value;
+  const to      = document.getElementById('admToFilter').value;
 
-    // 한글 → 영문 변환
-    const esSubject = subject === '전체' ? null : subject;
+  const esSubject = subject === '전체' ? null : subject;
+  const logs = await _fetchAdminLogs({
+    subject: esSubject || null,
+    level  : level !== 'ALL' ? level : null,
+    from   : from || null,
+    to     : to   || null,
+    keyword: kw   || null,
+  });
+  _renderTable(logs);
+}
 
-    // 항상 API 재호출 (레벨/주체/날짜/키워드 서버에서 필터링)
-    const logs = await _fetchAdminLogs({
-      subject: esSubject || null,
-      level  : level !== 'ALL' ? level : null,
-      from   : from || null,
-      to     : to   || null,
-      keyword: kw   || null,
-    });
-    _renderTable(logs);
-  }
-
-  document.getElementById('admEsTabs').addEventListener('click', async e=>{
+  // ── 탭 클릭: subject 드롭다운 건드리지 않고 curEs만 변경
+document.getElementById('admEsTabs').addEventListener('click', async e => {
   const btn = e.target.closest('.adm-tab');
-  if(!btn) return;
-  document.querySelectorAll('.adm-tab').forEach(b=>b.classList.remove('active'));
+  if (!btn) return;
+  document.querySelectorAll('.adm-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   curEs = btn.dataset.es;
-  document.getElementById('admSubjectFilter').value = curEs;
 
+  // ← 검색 필터(admSubjectFilter)는 건드리지 않음
   const esSubject = curEs === '전체' ? null : curEs;
   const logs = await _fetchAdminLogs({ subject: esSubject });
-
   _admLogs = logs;
   _doFilter();
 });
 
-  document.getElementById('admSearchBtn').addEventListener('click', async () => _doFilter());
-  document.getElementById('admResetBtn').addEventListener('click', async ()=>{
-  ['admLevelFilter','admSubjectFilter'].forEach(id=>document.getElementById(id).value=id.includes('Level')?'ALL':'전체');
-  ['admKeyword','admFromFilter','admToFilter'].forEach(id=>document.getElementById(id).value='');
-  curEs='전체';
-  document.querySelectorAll('.adm-tab').forEach((b,i)=>{b.classList.toggle('active',i===0);});
-  const logs = await _fetchAdminLogs();
-  _admLogs = logs;
+document.getElementById('admSearchBtn').addEventListener('click', async () => _doFilter());
+
+// ── 초기화: 검색 필터만 리셋, 탭은 유지
+document.getElementById('admResetBtn').addEventListener('click', async () => {
+  ['admLevelFilter', 'admSubjectFilter'].forEach(id =>
+    document.getElementById(id).value = id.includes('Level') ? 'ALL' : '전체'
+  );
+  ['admKeyword', 'admFromFilter', 'admToFilter'].forEach(id =>
+    document.getElementById(id).value = ''
+  );
+  // ← curEs와 탭 활성화 상태는 그대로 유지
   _doFilter();
+});
+
+document.getElementById('admKeyword').addEventListener('keydown', e => {
+  if (e.key === 'Enter') _doFilter();
 });
   document.getElementById('admKeyword').addEventListener('keydown', e=>{ if(e.key==='Enter') _doFilter(); });
 
@@ -808,7 +812,7 @@ async function _renderCorrectionPage() {
       id      : d.doc_id,
       title   : d.title,
       url     : d.url || '-',
-      score: d.tend_score.toFixed(4),
+      score: d.tend_score.toFixed(1),
       tendency: d.tendency === 'positive' ? '긍정' : d.tendency === 'negative' ? '부정' : '중립',
     }));
   } catch(e) { console.warn('correction detect 실패:', e); }
@@ -837,7 +841,13 @@ async function _renderCorrectionPage() {
             ${reviewItems.map(item => `
               <tr data-id="${item.id}" data-title="${item.title.replace(/"/g, '&quot;')}" data-url="${item.url}" data-score="${item.score}" data-tendency="${item.tendency}">
                 <td><strong>${item.title}</strong></td>
-                <td class="log-msg">${item.url}</td>
+                <td class="log-msg">
+                  <a href="${item.url}" target="_blank" rel="noopener"
+                     title="${item.url}"
+                     style="color:var(--teal);text-decoration:none;">
+                    ${item.url.length > 30 ? item.url.slice(0, 30) + '...' : item.url}
+                  </a>
+                </td>
                 <td style="color:${getScoreColor(item.score)}; font-weight:800;">${item.score}</td>
                 <td><span class="log-badge ${getTendencyClass(item.tendency)}">${item.tendency}</span></td>
                 <td><button class="adm-btn adm-btn-primary edit-correction-btn" data-id="${item.id}" style="font-size:12px; padding:6px 14px;"><i class="fas fa-pen"></i> 수정</button></td>

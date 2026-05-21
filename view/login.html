@@ -234,6 +234,14 @@
     .pw-match-msg.ok { color: var(--pos); }
     .pw-match-msg.ng { color: var(--neg); }
 
+    .tel-hint {
+      display: block;
+      font-size: 11px;
+      color: var(--sub);
+      margin-top: 4px;
+      font-weight: 400;
+    }
+
     .login-page {
       display: flex;
       flex-direction: row;
@@ -412,6 +420,7 @@
     <div class="mfg">
       <label>휴대폰번호</label>
       <input type="tel" id="signupPhone" placeholder="특수문자없이 숫자만"/>
+      <span class="tel-hint">특수문자없이 숫자만</span>
     </div>
     <button class="mbtn" id="doSignup">가입하기</button>
     <div class="mlink">이미 계정이 있으신가요? <a id="goLogin">로그인</a></div>

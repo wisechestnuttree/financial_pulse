@@ -162,34 +162,51 @@
         <div id="messageArea" class="message-area"></div>
         <hr>
         <div style="font-size: 12px; color: #6c757d;">
-            ※ 재시도 시 실제 크롤링이 아닌 시뮬레이션입니다.<br>
-            ERROR 로그 대상만 재시도 가능하며, 재시도 후 성공/실패 피드백을 보여줍니다.
+        ※ ERROR 로그 대상만 재시도 가능하며, 재시도 후 성공/실패 피드백을 보여줍니다.
         </div>
     </div>
 </div>
 
 <script>
-    // 이미지에서 본 로그 데이터 (ERROR + 일부 SUCCESS 제외, 주요 오류들)
-    const rawLogs = [
-        { time: "2025-04-29 05:44:44", level: "ERROR", detail: "Cwaling: https://m.news.naver.com/article/082/0822345670 | 재해: 상관관계가 실질 필요 | 기타: KX" },
-        { time: "2025-04-29 21:19:36", level: "ERROR", detail: "Cwaling: https://m.news.naver.com/article/082/0822345670 | 재해: 상관관계가 실질 필요 | 기타: KX" },
-        { time: "2025-04-29 14:24:41", level: "ERROR", detail: "[WARN] 연결 리플렉션 : url: https://m.news.naver.com/article/085/0881234567 | retry: 1/3" },
-        { time: "2025-04-29 01:20:15", level: "ERROR", detail: "[ERROR] 크롤링 중 오류 : 312 | 오류: 306 | 실패: 4 | errorCnt: 4" },
-        { time: "2025-04-29 17:12:19", level: "ERROR", detail: "[START] 뉴스 크롤링 통신 시작 | 대기: 10초, DUP, 연속단수" },
-        // WARN 예시도 추가
-        { time: "2025-04-29 04:00:00", level: "WARN", detail: "비지역 실행 감지 | 정상화 필요" },
-        { time: "2025-04-29 09:30:22", level: "WARN", detail: "재시도 한계 초과: https://m.news.naver.com/article/082/0822345670" }
-    ];
+    // BASE_URL: iframe은 독립 페이지이므로 직접 정의
+    const BASE_URL = window.location.origin;
 
-    let errorLogs = rawLogs.filter(log => log.level === "ERROR");
-    let warnLogs = rawLogs.filter(log => log.level === "WARN");
-    
-    // 각 error 항목에 'selected' 상태 추가 (초기 false)
-    let errorItems = errorLogs.map((log, idx) => ({
-        id: idx,
-        ...log,
-        selected: false
-    }));
+    let errorItems = [];
+    let warnLogs   = [];
+
+    // ── 실제 API에서 crawl 로그 로드
+    async function loadLogs() {
+        try {
+            const res = await fetch(BASE_URL + '/logs/search', {
+                method     : 'POST',
+                headers    : { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body       : JSON.stringify({ subject: 'crawl', size: 200 })
+            });
+            const data = await res.json();
+            if (!res.ok || data.success === false) throw new Error(data.message || '로그 조회 실패');
+
+            const logs = (data.data?.logs || data.logs || []).map((l, idx) => ({
+                id    : l.log_id || `LOG-${String(idx + 1).padStart(5, '0')}`,
+                time  : (l.timestamp || '').replace('T', ' ').slice(0, 19),
+                level : (l.level || 'INFO').toUpperCase(),
+                detail: l.message || '',
+            }));
+
+            errorItems = logs
+                .filter(l => l.level === 'ERROR')
+                .map(l => ({ ...l, selected: false }));
+
+            warnLogs = logs.filter(l => l.level === 'WARN' || l.level === 'WARNING');
+
+        } catch (e) {
+            console.error('로그 조회 실패:', e);
+            showMessage('⚠️ 로그를 불러오지 못했습니다: ' + e.message, 'error');
+        }
+        renderTable();
+    }
+
+
 
     function renderTable() {
         const tbody = document.getElementById('logBody');
@@ -197,12 +214,12 @@
         // ERROR + WARN 모두 표시하되, 선택 체크박스는 ERROR에만
         const allDisplay = [...errorItems, ...warnLogs];
         allDisplay.sort((a,b) => new Date(b.time) - new Date(a.time)); // 최신순
-        
+
         allDisplay.forEach(item => {
             const isError = item.level === "ERROR";
             const row = tbody.insertRow();
             row.className = isError ? 'error-row' : '';
-            
+
             // 시간
             const cellTime = row.insertCell(0);
             cellTime.innerText = item.time;
@@ -283,25 +300,30 @@
         let successCount = 0;
         let failCount = 0;
 
-        // 각 오류에 대해 재시도 수행 (비동기 순차 처리)
+        // 각 오류에 대해 실제 API 재시도
         for (let i = 0; i < selectedErrors.length; i++) {
             const err = selectedErrors[i];
-            // 재시도 로그 출력 - 실제로는 HTTP 재요청 등의 로직
-            await delay(800); // 대기 후 결과 랜덤 (80% 성공률 가정)
-            const isSuccess = Math.random() < 0.8;  // 80% 성공
-            if (isSuccess) {
-                successCount++;
-                addTempMessage(`✅ 재시도 성공: ${err.detail.substring(0, 60)}...`);
-                // 성공 시 해당 error 항목을 리스트에서 제거 (혹은 상태 변경)
-                const index = errorItems.findIndex(e => e.id === err.id);
-                if (index !== -1) errorItems.splice(index, 1);
-            } else {
+            try {
+                const res = await fetch(BASE_URL + '/api/retry-missing', {
+                    method     : 'POST',
+                    headers    : { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body       : JSON.stringify({ log_id: err.id, message: err.detail })
+                });
+                const result = await res.json();
+                if (res.ok && result.success) {
+                    successCount++;
+                    addTempMessage(`✅ 재시도 성공: ${err.detail.substring(0, 60)}...`);
+                    const index = errorItems.findIndex(e => e.id === err.id);
+                    if (index !== -1) errorItems.splice(index, 1);
+                } else {
+                    throw new Error(result.message || '실패');
+                }
+            } catch(e) {
                 failCount++;
-                addTempMessage(`❌ 재시도 실패: ${err.detail.substring(0, 60)}... (잠시 후 다시 시도 필요)`);
-                // 실패한 항목은 selected 해제하고 유지 (다음 재시도 대상)
+                addTempMessage(`❌ 재시도 실패: ${err.detail.substring(0, 60)}... (${e.message})`);
                 err.selected = false;
             }
-            // 중간에 테이블 갱신 (실시간 피드백)
             renderTable();
         }
 
@@ -339,12 +361,8 @@
         msgDiv.classList.add('show');
     }
 
-    function delay(ms) {
-        return new Promise(resolve => setTimeout(resolve, ms));
-    }
-
-    // 초기 렌더링
-    renderTable();
+    // 초기 로드: 실제 API에서 로그 가져오기
+    loadLogs();
 </script>
 </body>
 </html>
