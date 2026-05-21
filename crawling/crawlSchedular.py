@@ -23,9 +23,9 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 
-from collectKoNews import run_standalone_ko
-from collectEnNews import run_collector
-from collectEconomic import dailyJob
+from crawling.collectKoNews import run_standalone_ko
+from crawling.collectEnNews import run_collector
+from crawling.collectEconomic import dailyJob
 from logs.logger import getLogger
 
 KO_SCHEDULES = [

@@ -12,8 +12,8 @@ from elasticsearch import Elasticsearch
 from dateutil import parser
 
 # 유틸리티 로직 임포트 (좀비 프로세스 정리는 managed_driver 내부의 atexit 등이 담당)
-from utils.crawlerUtils import extractContentWithJs, generateHashId, managedDriver
-from utils.cleaningUtils import NewsCleaner
+from crawling.utils.crawlerUtils import extractContentWithJs, generateHashId, managedDriver
+from crawling.utils.cleaningUtils import NewsCleaner
 from logs.logger import getLogger
 
 logger = getLogger("crawl")

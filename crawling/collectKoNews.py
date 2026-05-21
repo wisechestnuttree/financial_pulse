@@ -12,8 +12,8 @@ from selenium.webdriver.common.by import By
 from dateutil import parser
 
 # 유틸리티 로직 임포트
-from utils.crawlerUtils import generateHashId, managedDriver
-from utils.cleaningUtils import KoNewsCleaner
+from crawling.utils.crawlerUtils import generateHashId, managedDriver
+from crawling.utils.cleaningUtils import KoNewsCleaner
 from logs.logger import getLogger
 
 logger = getLogger("crawl")
