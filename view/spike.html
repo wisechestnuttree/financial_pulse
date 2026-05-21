@@ -93,7 +93,7 @@
             <h4 id="usNewsTitle"><i class="fas fa-chart-line"></i>해외 급등 뉴스 성향</h4>
             <div id="usNewsList"></div>
           </div>
-          <div class="subnote">미국: AI 낙관론 vs 인플레이션 경계감 팽팽, 긍정·부정 격차 축소</div>
+<!--          <div class="subnote">미국: AI 낙관론 vs 인플레이션 경계감 팽팽, 긍정·부정 격차 축소</div>-->
         </div>
       </div>
     </div>
@@ -151,7 +151,7 @@ function toNewsDb(sectorChanges) {
       return {
         tag  : iconMap[a.tendency] || 'neu',
         title: a.title  || '제목 없음',
-        meta : '성향 점수 ' + ((a.tend_score || 0) * 100).toFixed(0),
+        meta : '성향 점수 ' + (a.tend_score != null ? a.tend_score : 0),
         url  : a.url    || '#',
       };
     });

@@ -369,6 +369,7 @@
 #hsPanelsWrap .ni-title{font-weight:800;margin-bottom:4px;font-size:13px;color:var(--navy);line-height:1.4;}
 #hsPanelsWrap .ni-meta{font-size:12px;color:var(--sub);}
 #hsPanelsWrap .subnote{margin-top:16px;font-size:12px;background:var(--teal-s);padding:10px 14px;border-radius:var(--rmd);text-align:center;color:var(--teal);border:1px dashed rgba(0,181,173,.25);}
+#hsPanelsWrap.hs-split .sect-stats {margin-top: 12px;          /* 위쪽 간격 확보 */ width: 100%;               /* 전체 너비 사용 → 새 줄 강제 */ justify-content: flex-start; /* 왼쪽 정렬 유지 */}
 #kwMainContent .panel{background:var(--panel);border:1.5px solid rgba(0,181,173,.1);backdrop-filter:blur(12px);border-radius:var(--rlg);padding:1rem;box-shadow:var(--sh);}
 /* #kwMainContent .panel-hdr{display:flex;justify-content:space-between;align-items:center;padding:.5rem .8rem .8rem;border-bottom:1px solid rgba(0,181,173,.1);margin-bottom:.8rem;font-weight:800;font-size:.95rem;color:var(--navy);}
 #kwMainContent .panel-hdr i{color:var(--teal);margin-right:7px;} */

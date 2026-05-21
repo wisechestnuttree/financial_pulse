@@ -335,7 +335,86 @@ function updateMetricCards(d, lbl) {
 
 // ================================================================
 // 단일 보기 렌더링
-// ================================================================
+async function renderSplitView() {
+  try {
+    const splitContainer = document.getElementById('splitView');
+    // 기존처럼 split-layout 생성 (makeSplitCol 사용)
+    splitContainer.innerHTML = `
+      <div class="split-layout">
+        <div class="split-col" id="splitLeft"></div>
+        <div class="split-col" id="splitRight"></div>
+      </div>
+      <!-- 왼쪽 캘린더를 이동시킬 전체 너비 영역 -->
+      <div id="fullWidthCalendar" style="margin-top: 22px;"></div>
+    `;
+
+    const [dataKR, dataUS] = await Promise.all([
+      fetchDashboard('ko'),
+      fetchDashboard('en')
+    ]);
+
+    if (!dataKR || !dataUS) {
+      splitContainer.innerHTML = '<div class="panel" style="padding:20px;color:var(--neg);">데이터를 불러올 수 없습니다.</div>';
+      return;
+    }
+
+    const hotKR = toHotIssueItems(dataKR);
+    const hotUS = toHotIssueItems(dataUS);
+    const krSectorsApi = toCoreSectors(dataKR);
+    const usSectorsApi = toCoreSectors(dataUS);
+
+    // makeSplitCol에 전달할 ID들 (왼쪽/오른쪽 각각)
+    const idsKR = { hot:'hotKR', trend:'trendKR', donut:'donutKR', stack:'stackKR', eco:'ecoKR', cal:'calKR' };
+    const idsUS = { hot:'hotUS', trend:'trendUS', donut:'donutUS', stack:'stackUS', eco:'ecoUS', cal:'calUS' };
+
+    document.getElementById('splitLeft').innerHTML = makeSplitCol(krSectorsApi, '한국', idsKR, 'kr');
+    document.getElementById('splitRight').innerHTML = makeSplitCol(usSectorsApi, '해외', idsUS, 'us');
+
+    // 데이터 렌더링 (기존 함수들)
+    renderHotIssueGrid('hotKR', hotKR);
+    renderHotIssueGrid('hotUS', hotUS);
+    renderTrendAnalysisFromApi('trendKR', dataKR.spike_analysis);
+    renderTrendAnalysisFromApi('trendUS', dataUS.spike_analysis);
+    renderMarketSentimentFromApi('donutKR', dataKR.market_tendency);
+    renderMarketSentimentFromApi('donutUS', dataUS.market_tendency);
+    renderSectorStackFromApi('stackKR', dataKR.sector_tendency);
+    renderSectorStackFromApi('stackUS', dataUS.sector_tendency);
+
+    let krIndicators = (dataKR.eco_indicators || []).filter(ind => ind.country === '대한민국');
+    let usIndicators = (dataUS.eco_indicators || []).filter(ind => ind.country === '미국');
+    renderEcoIndicatorsFromApi('ecoKR', krIndicators);
+    renderEcoIndicatorsFromApi('ecoUS', usIndicators);
+    renderEcoScheduleFromApi('calKR', dataKR.eco_schedule || []);
+    renderEcoScheduleFromApi('calUS', dataUS.eco_schedule || []);
+
+    // ===== 여기서부터 오른쪽 캘린더 제거 + 왼쪽 캘린더 확장 =====
+    // 1) 오른쪽 컬럼에서 'calUS' 패널을 감싸는 요소 찾아 제거
+    const rightCalendarPanel = document.querySelector('#splitRight .panel:has(#calUS)');
+    if (rightCalendarPanel) rightCalendarPanel.remove();
+
+    // 2) 왼쪽 컬럼의 캘린더 패널을 가져와서 fullWidthCalendar로 이동
+    const leftCalendarPanel = document.querySelector('#splitLeft .panel:has(#calKR)');
+    if (leftCalendarPanel) {
+      // 캘린더 패널을 원래 위치에서 제거
+      leftCalendarPanel.remove();
+      // 전체 너비 영역에 추가 (스타일 유지)
+      const fullWidthDiv = document.getElementById('fullWidthCalendar');
+      fullWidthDiv.innerHTML = '';
+      fullWidthDiv.appendChild(leftCalendarPanel);
+      // 패널 제목에 "(한국)" 명시
+      const titleElem = leftCalendarPanel.querySelector('.pt');
+      if (titleElem) titleElem.textContent = '📅 경제 일정';
+    }
+
+    // (선택) 캘린더 상세보기 링크 수정
+    const calLink = document.querySelector('#fullWidthCalendar a');
+    if (calLink) calLink.href = 'https://datacenter.hankyung.com/economic-calendar';
+
+  } catch (err) {
+    console.error('renderSplitView 오류:', err);
+    document.getElementById('splitView').innerHTML = '<div class="panel" style="padding:20px;color:var(--neg);">분할 보기 렌더링 중 오류 발생</div>';
+  }
+}
 async function renderSingleView() {
   const lang = curCountry === 'kr' ? 'ko' : 'en';
   const lbl  = curCountry === 'kr' ? '국내' : '해외';
@@ -413,80 +492,6 @@ async function renderSingleView() {
   const kwList = hotIssues.map(h => ({ keyword: h.keyword, totalNews: h.count }));
   updateTodayKeywords(kwList.length ? kwList : (curCountry === 'kr' ? DOM_KW : GBL_KW));
 }
-
-// ================================================================
-// 분할 보기 렌더링 (레이아웃 생성 + API 데이터)
-// ================================================================
-async function renderSplitView() {
-  try {
-    // 1. 레이아웃 생성 (splitView 내부에 두 개의 컬럼 추가)
-    const splitContainer = document.getElementById('splitView');
-    splitContainer.innerHTML = `
-      <div class="split-layout">
-        <div class="split-col" id="splitLeft"></div>
-        <div class="split-col" id="splitRight"></div>
-      </div>
-    `;
-
-    // 2. 데이터 병렬 호출
-    const [dataKR, dataUS] = await Promise.all([
-      fetchDashboard('ko'),
-      fetchDashboard('en')
-    ]);
-
-    if (!dataKR || !dataUS) {
-      splitContainer.innerHTML = '<div class="panel" style="padding:20px;color:var(--neg);">데이터를 불러올 수 없습니다.</div>';
-      return;
-    }
-
-    // 3. sectors 변환
-    const krSectorsApi = toCoreSectors(dataKR);
-    const usSectorsApi = toCoreSectors(dataUS);
-
-    // 4. 핫이슈 아이템
-    const hotKR = toHotIssueItems(dataKR);
-    const hotUS = toHotIssueItems(dataUS);
-
-    // 5. 각 컬럼에 makeSplitCol로 기본 패널 생성
-    const idsKR = { hot:'hotKR', trend:'trendKR', donut:'donutKR', stack:'stackKR', eco:'ecoKR', cal:'calKR' };
-    const idsUS = { hot:'hotUS', trend:'trendUS', donut:'donutUS', stack:'stackUS', eco:'ecoUS', cal:'calUS' };
-
-    document.getElementById('splitLeft').innerHTML = makeSplitCol([], '한국', idsKR, 'kr');
-    document.getElementById('splitRight').innerHTML = makeSplitCol([], '해외', idsUS, 'us');
-
-    // 6. 왼쪽(국내) 패널 데이터 렌더링
-    renderHotIssueGrid('hotKR', hotKR);
-    renderTrendAnalysis('trendKR', krSectorsApi);
-    renderMarketSentimentFromApi('donutKR', dataKR.market_tendency);
-    renderSectorStackFromApi('stackKR', dataKR.sector_tendency);
-    let krIndicators = (dataKR.eco_indicators || []).filter(ind =>
-        ind.country === '대한민국');
-    renderEcoIndicatorsFromApi('ecoKR', krIndicators);
-    renderEcoScheduleFromApi('calKR', dataKR.eco_schedule || []);
-
-    // 7. 오른쪽(해외) 패널 데이터 렌더링
-    renderHotIssueGrid('hotUS', hotUS);
-    renderTrendAnalysis('trendUS', usSectorsApi);
-    renderMarketSentimentFromApi('donutUS', dataUS.market_tendency);
-    renderSectorStackFromApi('stackUS', dataUS.sector_tendency);
-    let usIndicators = (dataUS.eco_indicators || []).filter(ind =>
-        ind.country === '미국');
-    renderEcoIndicatorsFromApi('ecoUS', usIndicators);
-    renderEcoScheduleFromApi('calUS', dataUS.eco_schedule || []);
-
-    // 8. 상세보기 링크
-    const bindEcoTitle = (titleId, url) => {
-      const el = document.getElementById(titleId);
-      if (el) el.onclick = () => window.open(url, '_blank');
-    };
-    bindEcoTitle('ecoKRTitle', 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp');
-    bindEcoTitle('ecoUSTitle', 'https://www.korcham.net/nCham/Service/EconBrief/appl/ProspectList.asp');
-  } catch (err) {
-    console.error('renderSplitView 오류:', err);
-    document.getElementById('splitView').innerHTML = '<div class="panel" style="padding:20px;color:var(--neg);">분할 보기 렌더링 중 오류 발생</div>';
-  }
-}
-
 // ================================================================
 // 뷰 전환 함수
 // ================================================================
@@ -575,7 +580,9 @@ function renderTrendAnalysisFromApi(cid, spikeAnalysis) {
     return;
   }
 
-  c.innerHTML = spikeAnalysis.map(s => {
+  const sorted = [...spikeAnalysis].sort((a, b) => a.sector.localeCompare(b.sector));
+
+  c.innerHTML = sorted.map(s => {
     const todayPos  = s.today.pos;
     const total     = s.today.total;
     const change    = s.change.pos;

@@ -396,16 +396,16 @@
     <div id="keywordContent" class="kw-main-grid single-view"></div>
 
     <!-- 최신 뉴스 섹션 (정적 예시) -->
-    <div class="panel" style="margin-top:24px;">
-      <div class="panel-hdr">
-        <div class="hdr-left"><i class="fas fa-newspaper"></i> 최신 핫이슈 뉴스</div>
-      </div>
-      <div class="news-grid">
-  <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(--sub);font-size:14px;">
-    <i class="fas fa-spinner fa-spin"></i> 데이터 불러오는 중...
-  </div>
-</div>
-    </div>
+<!--    <div class="panel" style="margin-top:24px;">-->
+<!--      <div class="panel-hdr">-->
+<!--        <div class="hdr-left"><i class="fas fa-newspaper"></i> 최신 핫이슈 뉴스</div>-->
+<!--      </div>-->
+<!--      <div class="news-grid">-->
+<!--  <div style="grid-column:1/-1;padding:40px;text-align:center;color:var(&#45;&#45;sub);font-size:14px;">-->
+<!--    <i class="fas fa-spinner fa-spin"></i> 데이터 불러오는 중...-->
+<!--  </div>-->
+<!--</div>-->
+<!--    </div>-->
 
   </main>
 </div>
@@ -883,11 +883,11 @@ function drawNetworkFromApi(cid, netWrapId, networkData) {
         ctx.stroke();
       }
       if (isHeld) { ctx.strokeStyle = '#8B4513'; ctx.lineWidth = 2.5; ctx.stroke(); }
-      ctx.beginPath(); ctx.arc(nd.x - nd.r * 0.35, nd.y - nd.r * 0.35, nd.r * 0.2, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();
+<!--      ctx.beginPath(); ctx.arc(nd.x - nd.r * 0.35, nd.y - nd.r * 0.35, nd.r * 0.2, 0, Math.PI * 2);-->
+<!--      ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fill();-->
       ctx.shadowBlur = 1.2; ctx.shadowColor = 'rgba(0,0,0,0.2)';
       ctx.fillStyle = textColor; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      let size = 10; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`;
+      let size = (nd.rank >= 1 && nd.rank <= 4) ? 14 : 10; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`;
       while (ctx.measureText(nd.id).width > nd.r * 1.6 && size > 8) { size -= 0.5; ctx.font = `700 ${size}px "Noto Sans KR",sans-serif`; }
       ctx.fillText(nd.id, nd.x, nd.y); ctx.shadowBlur = 0;
     });
@@ -985,7 +985,75 @@ async function buildDashboard(code, isSplit, apiData) {
         <div class="canvas-container net-container" id="netWrap_${code}"><canvas id="net_${code}"></canvas></div>
       </div>
     </div>
+    <div class="panel" style="margin-top:24px;">
+      <div class="panel-hdr">
+        <div class="hdr-left"><i class="fas fa-newspaper"></i> 최신 핫이슈 뉴스 (${flag})</div>
+      </div>
+      <div class="news-grid" id="newsGrid_${code}"></div>
+    </div>
   `;
+
+// ================================================================
+// 최신 핫이슈 뉴스 패널 — 특정 컨테이너에 렌더링 (분할뷰/단일뷰 공용)
+// ================================================================
+function renderNewsPanel(apiData, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container || !apiData) return;
+  const hotNews = apiData.hot_news || [];
+  if (!hotNews.length) {
+    container.innerHTML = '<div style="padding:20px;text-align:center;">뉴스 없음</div>';
+    return;
+  }
+
+  const tagMap = { positive: '긍정', negative: '부정', neutral: '중립' };
+  const tagColorMap = { positive: 'var(--pos)', negative: 'var(--neg)', neutral: 'var(--sub)' };
+  const sectorImgMap = {
+    'IT/기술'    : 'photo/tech.png',
+    '중공업/인프라': 'photo/industry.png',
+    '소비재/서비스': 'photo/consumer.png',
+    '바이오/헬스' : 'photo/bio.png',
+    '모빌리티'   : 'photo/mobility.png',
+    '매크로/정책' : 'photo/macro_policy.png',
+    '금융'       : 'photo/finance.png',
+  };
+  const defaultImg = 'photo/news_default.png';
+
+  // 상위 6개 키워드 각각 최대 2개 기사 → 최대 12개 카드
+  const topKeywords = hotNews.slice(0, 6);
+  const cards = [];
+  for (const kwItem of topKeywords) {
+    const articles = kwItem.articles || [];
+    const takeArticles = articles.slice(0, 2);
+    for (const art of takeArticles) {
+      cards.push({ keyword: kwItem.keyword, art });
+    }
+  }
+
+  container.innerHTML = cards.map(({ keyword, art }) => {
+    const tag      = art.tendency || 'neutral';
+    const sector   = art.sector   || '';
+    const score    = art.tend_score ? (art.tend_score * 100).toFixed(0) : '-';
+    const imgSrc   = sectorImgMap[sector] || defaultImg;
+    const tagColor = tagColorMap[tag] || 'var(--sub)';
+    const tagLabel = tagMap[tag] || '중립';
+
+    return `
+      <a class="news-card" href="${art.url || '#'}" target="_blank" rel="noopener"
+         style="text-decoration:none;">
+        <img class="news-img" src="${imgSrc}" alt="${sector || 'news'}"
+             onerror="this.onerror=null; this.src='${defaultImg}';">
+        <div class="news-content">
+          <span class="news-tag">${keyword}</span>
+          ${sector ? `<span style="font-size:11px;font-weight:600;color:var(--teal);background:rgba(0,181,173,0.1);padding:2px 8px;border-radius:20px;">${sector}</span>` : ''}
+          <div class="news-title">${art.title || keyword + ' 관련 기사'}</div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:4px;">
+            <span style="font-size:11px;font-weight:700;color:${tagColor};">${tagLabel}</span>
+            <span style="font-size:11px;color:var(--sub);">점수: ${score}</span>
+          </div>
+        </div>
+      </a>`;
+  }).join('');
+}
 
   setTimeout(() => {
     const listWrap = sec.querySelector(`#list_${code}`);
@@ -1029,7 +1097,7 @@ async function buildDashboard(code, isSplit, apiData) {
     drawNetworkFromApi(`net_${code}`, `netWrap_${code}`, apiData ? apiData.keyword_network : null);
 
     // 최신 핫이슈 뉴스 패널 업데이트
-    renderHotNewsPanel(apiData);
+    renderNewsPanel(apiData, `newsGrid_${code}`);
 
   }, 50);
   return sec;
@@ -1183,6 +1251,10 @@ function renderHotNewsPanel(apiData) {
   const newsGrid = document.querySelector('.news-grid');
   if (!newsGrid || !apiData) return;
   const hotNews = apiData.hot_news || [];
+  if (!hotNews.length) {
+    newsGrid.innerHTML = '<div style="padding:20px;text-align:center;">뉴스 없음</div>';
+    return;
+  }
   if (!hotNews.length) return;
 
   const tagMap = { positive: '긍정', negative: '부정', neutral: '중립' };
@@ -1214,7 +1286,7 @@ function renderHotNewsPanel(apiData) {
   newsGrid.innerHTML = cards.map(({ keyword, art }) => {
     const tag      = art.tendency || 'neutral';
     const sector   = art.sector   || '';
-    const score    = art.tend_score ? (art.tend_score * 100).toFixed(0) : '-';
+    const score = art.tend_score != null ? art.tend_score : '-';
     const imgSrc   = sectorImgMap[sector] || defaultImg;
     const tagColor = tagColorMap[tag] || 'var(--sub)';
     const tagLabel = tagMap[tag]      || '중립';
