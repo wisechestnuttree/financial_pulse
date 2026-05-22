@@ -1,5 +1,7 @@
 import asyncio
 import json
+import csv
+import io
 from datetime import datetime, timezone
 from elasticsearch.helpers import scan
 from dataStorage.elasticSearch.es import getEs
@@ -41,21 +43,18 @@ def archiveLogs(index: str, before_date: str) -> dict:
     })
 
     es   = getEs()
-    docs = scan(
+    docs = list(scan(
         es, index=index,
         query={"query": {"range": {"timestamp": {"lte": before_date}}}},
         size=10000
-    )
-
-    archive = []
-    for doc in docs:
-        archive.append(doc["_source"])
-
-    # JSONL 파일로 저장
-    file_name = f"archive_{index}_{before_date}.jsonl"
-    with open(f"archives/{file_name}", "w", encoding="utf-8") as f:
-        for row in archive:
-            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    ))
+    archive = [doc["_source"] for doc in docs]
+    output = io.StringIO()
+    if archive:
+        writer = csv.DictWriter(output, fieldnames=archive[0].keys())
+        writer.writeheader()
+        writer.writerows(archive)
+    csv_bytes = ('\ufeff' + output.getvalue()).encode('utf-8')
 
     # ES에서 삭제
     es.delete_by_query(
@@ -65,6 +64,7 @@ def archiveLogs(index: str, before_date: str) -> dict:
     es.close()
 
     logger.info("로그 아카이빙 완료", extra={
-        "index": index, "archived_cnt": len(archive), "file": file_name
+        "index": index, "archived_cnt": len(archive)
     })
-    return {"archived": len(archive), "file": file_name}
+
+    return csv_bytes, len(archive)

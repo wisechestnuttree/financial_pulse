@@ -23,11 +23,11 @@ GET /api/dashboard?lang=ko
 """
 import pandas as pd
 from fastapi import APIRouter, HTTPException
-
+from datetime import date, timedelta
 from dataStorage.elasticSearch.es import * # getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from dataStorage.mariaDb.db import getConn
 from logs.logger import getLogger
-from router.commonFunc import ok, translateSector, getDocIds
+from router.commonFunc import ok, translateSector, getDocIds, getTodayRange
 
 logger = getLogger("system")
 router = APIRouter(prefix="/api", tags=["dashboard"])
@@ -371,23 +371,23 @@ def getDashboard(lang: str = "ko"):
     GET /api/dashboard?lang=ko  (lang=en 으로 미국 기사 조회 가능)
     ES msearch 1번 왕복 + DB + CSV → JSON 한 방 반환
     """
-    # today    = date.today().isoformat()
-    # week_ago = (date.today() - timedelta(days=7)).isoformat()
-    today = "2026-03-30"
-    week_ago = "2026-03-23"
+    start, end = getTodayRange(lang)
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    # today = "2026-03-30"
+    # week_ago = "2026-03-23"
 
     # ── ES — news 인덱스에서 doc_id 수집 후 analyze msearch ────
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
     es = getEs()
     try:
-        doc_ids_today = getDocIds(es, news_index, today, today)
-        doc_ids_week  = getDocIds(es, news_index, week_ago, today)
+        doc_ids_today = getDocIds(es, news_index, start, end)
+        doc_ids_week = getDocIds(es, news_index, week_ago, end)
 
         if not doc_ids_today:
             logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
                 "action": "getDashboard",
                 "index" : news_index,
-                "date"  : today,
+                "date"  : end,
             })
 
         searches  = buildMsearch(doc_ids_today, doc_ids_week)
@@ -430,7 +430,7 @@ def getDashboard(lang: str = "ko"):
     logger.info("대시보드 조회 성공", extra={
         "action": "dashboard_fetch",
         "lang"  : lang,
-        "date"  : today,
+        "date"  : end,
         "total" : tendency.get("total", 0),
     })
 

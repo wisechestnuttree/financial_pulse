@@ -42,7 +42,7 @@ def adminLogin(email: str, password: str) -> dict:
     try:
         with conn.cursor() as cursor:
             # 1. 이메일로 사용자 조회 (role이 admin인 경우만)
-            sql = "SELECT email, password_hash, role FROM user WHERE email = %s AND role = 'admin'"
+            sql = "SELECT email, encry_pw FROM user WHERE email = %s"
             cursor.execute(sql, (email,))
             user = cursor.fetchone()
 
@@ -55,7 +55,7 @@ def adminLogin(email: str, password: str) -> dict:
                 )
 
             # 3. 비밀번호 검증 (comparePassword 사용)
-            if not comparePassword(user["password_hash"], password):
+            if not comparePassword(user["encry_pw"], password):
                 logger.warning("비밀번호 불일치", extra={"email": email})
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

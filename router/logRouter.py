@@ -5,6 +5,7 @@ from model.logArchiveModel import ArchiveRequest
 from service.logSvc import searchLog, exportLogCsv, getLogSummary
 from service.logArchiveSvc import streamLogs, archiveLogs
 from encryption.encAuth import verify_admin
+import io
 
 router = APIRouter(prefix="/logs", tags=["logs"])
 
@@ -39,4 +40,15 @@ async def stream(subject: str = None, api_key=Depends(verify_admin)):
 @router.post("/archive")
 def archive(req: ArchiveRequest, api_key=Depends(verify_admin)):
     """로그 아카이빙 - before_date 이전 로그 파일 저장 후 ES 삭제"""
-    return archiveLogs(index=req.index, before_date=req.before_date)
+    csv_data, count = archiveLogs(index=req.index, before_date=req.before_date)
+    if count == 0:
+        return {"success": False, "message": "아카이빙할 데이터가 없습니다.", "archived": 0}
+    file_name = f"archive_{req.index}_{req.before_date}.csv"
+    return StreamingResponse(
+        io.BytesIO(csv_data),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={
+            "Content-Disposition": f"attachment; filename={file_name}",
+            "X-Archived-Count": str(count)
+        }
+    )

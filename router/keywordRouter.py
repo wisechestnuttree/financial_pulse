@@ -21,10 +21,10 @@ GET /api/keyword?lang=ko
 from itertools import combinations
 
 from fastapi import APIRouter, HTTPException
-
+from datetime import date, timedelta
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from logs.logger import getLogger
-from router.commonFunc import ok, getDocIds, translateSector
+from router.commonFunc import ok, getDocIds, translateSector, getTodayRange
 
 logger = getLogger("system")
 router = APIRouter(prefix="/api", tags=["keyword"])
@@ -322,22 +322,22 @@ def getKeywordTrend(lang: str = "ko"):
            → 반드시 try 블록 안(es.close() 전)에서 호출
            today/week_ago 는 테스트용 고정값 → 운영 시 date.today() 로 교체
     """
-    # today    = date.today().isoformat()
-    # week_ago = (date.today() - timedelta(days=7)).isoformat()
-    today = "2026-03-30"
-    week_ago = "2026-03-23"
+    start, end = getTodayRange(lang)
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
+    # today = "2026-03-30"
+    # week_ago = "2026-03-23"
 
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
     es = getEs()
     try:
-        doc_ids_today = getDocIds(es, news_index, today, today)
-        doc_ids_week  = getDocIds(es, news_index, week_ago, today)
+        doc_ids_today = getDocIds(es, news_index, start, end)
+        doc_ids_week = getDocIds(es, news_index, week_ago, end)
 
         if not doc_ids_today:
             logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
                 "action": "doc_ids_empty",
                 "index" : news_index,
-                "date"  : today,
+                "date"  : end,
             })
 
         searches  = buildMsearch(doc_ids_today, doc_ids_week, top20_words=[])
@@ -358,7 +358,7 @@ def getKeywordTrend(lang: str = "ko"):
 
         strength_map    = buildStrength(res_e, top7_words, total_map)
         # buildWeeklyTrend — 날짜별 ES 추가 조회 (es 객체 try 블록 안에서 사용)
-        weekly_trend    = buildWeeklyTrend(res_a, res_c, es, news_index, today, week_ago)
+        weekly_trend    = buildWeeklyTrend(res_a, res_c, es, news_index, end, week_ago)
         keyword_network = buildNetwork(res_a, res_d)
         hot_news = buildHotNews(res_e, top7, strength_map, es=es, news_index=news_index)
 
@@ -375,7 +375,7 @@ def getKeywordTrend(lang: str = "ko"):
     logger.info("키워드 트렌드 조회 성공", extra={
         "action"  : "keyword_fetch",
         "lang"    : lang,
-        "date"    : today,
+        "date"    : end,
         "top7_cnt": len(top7),
     })
 

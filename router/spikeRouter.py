@@ -22,10 +22,10 @@ GET /api/spike?lang=ko
 """
 
 from fastapi import APIRouter, HTTPException
-
+from datetime import date, timedelta
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from logs.logger import getLogger
-from router.commonFunc import ok, translateSector, getDocIds
+from router.commonFunc import ok, translateSector, getDocIds, getTodayRange
 
 logger = getLogger("system")
 router = APIRouter(prefix="/api", tags=["spike"])
@@ -243,20 +243,20 @@ def getSpikeReport(lang: str = "ko"):
            → 반드시 try 블록 안(es.close() 전)에서 호출
            today/week_ago 는 테스트용 고정값 → 운영 시 date.today() 로 교체
     """
-    today    = "2026-03-31"
-    week_ago = "2026-03-24"
+    start, end = getTodayRange(lang)
+    week_ago = (date.today() - timedelta(days=7)).isoformat()
 
     news_index = NEWS_KO_IDX if lang == "ko" else NEWS_EN_IDX
     es = getEs()
     try:
-        doc_ids_today = getDocIds(es, news_index, today, today)
-        doc_ids_week  = getDocIds(es, news_index, week_ago, today)
+        doc_ids_today = getDocIds(es, news_index, start, end)
+        doc_ids_week = getDocIds(es, news_index, week_ago, end)
 
         if not doc_ids_today:
             logger.warning("오늘 기사 없음 — 빈 데이터 반환", extra={
                 "action": "doc_ids_empty",
                 "index" : news_index,
-                "date"  : today,
+                "date"  : end,
             })
 
         searches  = buildMsearch(doc_ids_today, doc_ids_week)
@@ -286,7 +286,7 @@ def getSpikeReport(lang: str = "ko"):
     logger.info("급등 기사 분석 조회 성공", extra={
         "action"      : "spike_fetch",
         "lang"        : lang,
-        "date"        : today,
+        "date"        : end,
         "sector_cnt"  : len(sector_changes),
     })
 

@@ -24,10 +24,10 @@ GET /api/search?keyword=삼성전자
 """
 
 from fastapi import APIRouter, HTTPException, Request
-
+from datetime import date, timedelta
 from dataStorage.elasticSearch.es import getEs, ANALYZE_DATA_IDX, NEWS_KO_IDX, NEWS_EN_IDX
 from logs.logger import getLogger
-from router.commonFunc import ok, translateSector, getDocIds, translateSectorToEn
+from router.commonFunc import ok, translateSector, getDocIds, translateSectorToEn, getTodayRange
 
 logger   = getLogger("system")
 u_logger = getLogger("user")
@@ -324,7 +324,8 @@ def getSearchResult(keyword: str, request: Request = None):
         raise HTTPException(status_code=400, detail="검색어를 입력해 주세요.")
 
     keyword = keyword.strip()
-    today   = "2026-03-31"
+    ko_start, ko_end = getTodayRange("ko")
+    en_start, en_end = getTodayRange("en")
 
     u_logger.info("검색 요청", extra={
         "action" : "search",
@@ -335,15 +336,15 @@ def getSearchResult(keyword: str, request: Request = None):
     es = getEs()
     try:
         # news_ko + news_en 양쪽 doc_id 수집 후 합산
-        doc_ids_ko = getDocIds(es, NEWS_KO_IDX, today, today)
-        doc_ids_en = getDocIds(es, NEWS_EN_IDX, today, today)
+        doc_ids_ko = getDocIds(es, NEWS_KO_IDX, ko_start, ko_end)
+        doc_ids_en = getDocIds(es, NEWS_EN_IDX, en_start, en_end)
         doc_ids    = list(set(doc_ids_ko + doc_ids_en))
 
         if not doc_ids:
             logger.warning("검색 대상 기사 없음", extra={
                 "action": "search_empty",
                 "u_id"  : u_id,
-                "date"  : today,
+                "date"  : date.today().isoformat(),
             })
             return ok("검색 결과가 없습니다.", {
                 "keyword" : keyword,
