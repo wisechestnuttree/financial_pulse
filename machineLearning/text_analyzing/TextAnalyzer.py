@@ -14,6 +14,7 @@ from keybert.backend import SentenceTransformerBackend
 from sklearn.metrics.pairwise import cosine_similarity
 import spacy
 from logs.logger import getLogger
+import time
 
 logger = getLogger("ml")
 
@@ -48,7 +49,7 @@ class TextAnalyzer:
             "네티즌", "누리꾼", "소비자", "고객", "저자", "독자", "팀장", "본부장", "위원장",
             "대통령", "총리", "장관", "의원", "교수", "연구원", "기자", "특파원", "리포터",
             "앵커", "애널리스트", "이코노미스트", "작전세력", "기관투자가", "외국인","이지만",
-            "Ai","신중하","New York City","Flo Rida"
+            "Ai","신중하","New York City","Flo Rida","김영이"
         }
         # =========================================================================
 
@@ -380,13 +381,19 @@ class TextAnalyzer:
 
     def run_analysis(self, target_langs=['ko', 'en']):
         #  GTX 1060 환경을 고려하여 배치 사이즈 16 유지 (안정성)
-        batch_size = 16
+        batch_size = 64
         for lang in target_langs:
             self._load_models(lang)
 
             index_name = f"news_{lang}"
-            scan = helpers.scan(self.es, index=index_name, query={"query": {"match_all": {}}}, size=500,
-                                _source=["content", "title"])
+            scan = helpers.scan(
+                self.es,
+                index=index_name,
+                query={"query": {"match_all": {}}},
+                size=1000,
+                _source=["content", "title"],
+                scroll='2h'  # 이 부분을 추가하세요
+            )
 
             batch_docs = []
 
@@ -421,7 +428,9 @@ class TextAnalyzer:
                 })
 
                 if len(batch_docs) >= batch_size:
+                    t0 = time.time()
                     self.process_and_save(batch_docs)
+                    logger.info(f"[TIME] process_and_save {len(batch_docs)} docs: {time.time() - t0:.2f}s")
                     batch_docs = []
 
             if batch_docs:
@@ -477,6 +486,7 @@ class TextAnalyzer:
             return True
 
         #  [Pass 1] 문서 전처리 및 후보군 식별
+        t0 = time.time()
         all_texts_to_encode = set()
 
         for d in docs:
@@ -668,6 +678,7 @@ class TextAnalyzer:
                 continue
 
         #  [Pass 2] 1060 맞춤형 GPU 임베딩 일괄 계산
+        logger.info(f"[TIME] pass1 candidates: {time.time() - t0:.2f}s")
         docs_to_encode = []
         words_to_encode = set()
         lang_cache = self.word_emb_cache_ko if docs and docs[0]['lang'] == 'ko' else self.word_emb_cache_en
@@ -681,12 +692,34 @@ class TextAnalyzer:
         doc_emb_dict = {}
 
         if docs_to_encode:
-            doc_embeddings = self.st_model.encode(docs_to_encode, batch_size=8, convert_to_numpy=True)
-            doc_emb_dict = {d['id']: emb for d, emb in zip(docs, doc_embeddings)}
+            t0 = time.time()
+
+            doc_embeddings = self.st_model.encode(
+                docs_to_encode,
+                batch_size=32,
+                convert_to_numpy=True,
+                show_progress_bar=False
+            )
+
+            logger.info(f"[TIME] doc encode: {time.time() - t0:.2f}s")
+
+            doc_emb_dict = {
+                d['id']: emb for d, emb in zip(docs, doc_embeddings)
+            }
 
         if words_to_encode:
             words_list = list(words_to_encode)
-            word_embs = self.st_model.encode(words_list, batch_size=32, convert_to_numpy=True)
+
+            t0 = time.time()
+
+            word_embs = self.st_model.encode(
+                words_list,
+                batch_size=128,
+                convert_to_numpy=True,
+                show_progress_bar=False
+            )
+
+            logger.info(f"[TIME] word encode {len(words_list)} words: {time.time() - t0:.2f}s")
 
             for txt, emb in zip(words_list, word_embs):
                 lang_cache[txt] = emb
@@ -730,7 +763,13 @@ class TextAnalyzer:
                                     continue
 
                             survive_set = self.all_survive_ko if d['lang'] == 'ko' else self.all_survive_en
-                            is_special = any(kw in fw.replace(" ", "") for fw in survive_set) or kw in survive_set
+
+                            kw_nospace = kw.replace(" ", "")
+
+                            if d['lang'] == 'ko':
+                                is_special = kw in self.all_survive_ko or kw_nospace in self.survive_ko_no_space
+                            else:
+                                is_special = kw in self.all_survive_en
 
                             if d['lang'] == 'ko':
                                 if is_special:
@@ -844,10 +883,6 @@ class TextAnalyzer:
                                 if normalized_kw not in final_keywords:
                                     final_keywords.append(normalized_kw)
 
-                logger.info(f"  기업 : {d['ner']['company']}")
-                logger.info(f"  인물 : {d['ner']['person']}")
-                logger.info(f"  키워드 : {final_keywords[:7]}")
-
                 actions.append({
                     "_op_type": "update",
                     "_index": "analyze",
@@ -872,7 +907,12 @@ class TextAnalyzer:
 
         if actions:
             try:
+                logger.info(f"[BATCH DONE] {len(actions)} docs processed")
+                t0 = time.time()
+
                 helpers.bulk(self.es, actions)
+
+                logger.info(f"[TIME] es bulk {len(actions)} docs: {time.time() - t0:.2f}s")
             except Exception as e:
                 logger.error(f"ES Bulk Error", extra={"action": "process_and_save", "err_msg": str(e)})
 
