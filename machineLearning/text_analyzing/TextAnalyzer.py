@@ -49,7 +49,7 @@ class TextAnalyzer:
             "네티즌", "누리꾼", "소비자", "고객", "저자", "독자", "팀장", "본부장", "위원장",
             "대통령", "총리", "장관", "의원", "교수", "연구원", "기자", "특파원", "리포터",
             "앵커", "애널리스트", "이코노미스트", "작전세력", "기관투자가", "외국인","이지만",
-            "Ai","신중하","New York City","Flo Rida","김영이","유일한"
+            "Ai","신중하","New York City","Flo Rida","김영이"
         }
         # =========================================================================
 
@@ -807,22 +807,15 @@ class TextAnalyzer:
                         final_keywords = []
 
                         for kw, score in sorted_kws:
-                            if len(final_keywords) >= 15: break
-                            if score <= 0.0: continue
+                            if len(final_keywords) >= 15:
+                                break
+                            if score <= 0.0:
+                                continue
 
                             if d['lang'] == 'ko':
                                 cleaned_kw = re.sub(r'(의|해|는|은|이|가|를|을)$', '', kw) if len(kw) > 2 else kw
                             else:
                                 cleaned_kw = kw
-
-                            # 2. 정규화된 키워드(cleaned_kw)를 기준으로 불용어 필터링을 수행합니다.
-                            kw_l = cleaned_kw.lower()
-
-                            # 불용어 체크 (ko와 en 리스트를 통합하거나 언어별로 분리해서 체크)
-                            if kw_l in self.finance_noise_ko or kw_l in self.finance_noise_en:
-                                continue
-                            if cleaned_kw in self.hard_noise_company or cleaned_kw in self.hard_noise_person:
-                                continue
 
                             match_target = cleaned_kw.lower().replace(" ", "")
                             normalized_kw = cleaned_kw
