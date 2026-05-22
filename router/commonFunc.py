@@ -46,43 +46,32 @@ def getDocIds(es, index: str, date_from: str, date_to: str, size: int = 10000) -
 
 KST = ZoneInfo("Asia/Seoul")
 
-KO_SCHEDULES = ["07:30", "11:30", "18:30", "00:00"]
-EN_SCHEDULES = ["06:10", "21:00", "00:00"]
+KO_SCHEDULES = ["07:30", "11:30", "18:30", "23:59"]
+EN_SCHEDULES = ["06:10", "21:00"]
 
 def getTodayRange(lang: str) -> tuple[str, str]:
     now = datetime.now(KST)
     today = now.date()
+    current_time = now.strftime("%H:%M")
 
     schedules = KO_SCHEDULES if lang == "ko" else EN_SCHEDULES
 
-    # 현재 시간 기준으로 직전/현재 크롤링 구간 찾기
-    current_time = now.strftime("%H:%M")
-
-    # 현재 시간이 속하는 구간 찾기
-    prev_schedule = None
-    curr_schedule = None
-
+    # 현재 시간 기준 가장 최근 크롤링 시간 찾기
+    last_crawl = None
     for sched in schedules:
         if current_time >= sched:
-            prev_schedule = curr_schedule
-            curr_schedule = sched
+            last_crawl = sched
         else:
             break
 
-    if curr_schedule is None:
-        # 오늘 첫 스케줄 이전 → 전날 마지막 구간
-        prev_sched = schedules[-2] if len(schedules) > 1 else schedules[-1]
-        last_sched = schedules[-1]
-        start_dt = datetime.strptime(f"{today - timedelta(days=1)} {prev_sched}", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
-        end_dt   = datetime.strptime(f"{today - timedelta(days=1)} {last_sched}", "%Y-%m-%d %H:%M")
-    elif prev_schedule is None:
-        # 첫 번째 스케줄 직후 → 전날 마지막 ~ 오늘 첫 스케줄
-        last_sched = schedules[-1]
-        start_dt = datetime.strptime(f"{today - timedelta(days=1)} {last_sched}", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
-        end_dt   = datetime.strptime(f"{today} {curr_schedule}", "%Y-%m-%d %H:%M")
+    if last_crawl is None:
+        # 오늘 첫 크롤링 이전 → 전날 마지막 크롤링
+        last_crawl = schedules[-1]
+        end_dt = datetime.strptime(f"{today - timedelta(days=1)} {last_crawl}", "%Y-%m-%d %H:%M")
     else:
-        # 일반 구간
-        start_dt = datetime.strptime(f"{today} {prev_schedule}", "%Y-%m-%d %H:%M") + timedelta(minutes=1)
-        end_dt   = datetime.strptime(f"{today} {curr_schedule}", "%Y-%m-%d %H:%M")
+        end_dt = datetime.strptime(f"{today} {last_crawl}", "%Y-%m-%d %H:%M")
 
-    return start_dt.strftime("%Y-%m-%d %H:%M:%S"), end_dt.strftime("%Y-%m-%d %H:%M:%S")
+    start_dt = end_dt - timedelta(hours=24)
+    real_dt= now
+
+    return start_dt.strftime("%Y-%m-%d %H:%M:%S"), real_dt.strftime("%Y-%m-%d %H:%M:%S")

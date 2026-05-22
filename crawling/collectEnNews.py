@@ -54,8 +54,8 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
     """
     # 스레드 간 완벽한 격리를 위해 시작 시점에만 살짝 시차를 둡니다.
     time.sleep(thread_id * 2)
-    logger.info(f"[Thread-{thread_id}] 브라우저 인스턴스 초기화 및 가동 시작.", extra={"action": "newsWorker"})
-
+    logger.info(f"[Thread-{thread_id}] 브라우저 인스턴스 초기화 및 가동 시작.")
+    clean_url= ""
     # 브라우저를 '딱 한 번만' 켭니다.
     with managedDriver() as driver:
         while True:
@@ -65,7 +65,7 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
             except queue.Empty:
                 # 큐에 더 이상 처리할 기사가 없으면 스레드 종료 (브라우저 자동 닫힘)
                 break
-
+            clean_url = ""
             try:
                 raw_pub = target.get('raw_published', '').strip()
                 published_at = None
@@ -154,13 +154,13 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
                     stats["success"] += 1
 
             except Exception as e:
-                logger.error(f"[Thread-{thread_id}] 기사 처리 중 에러 발생 (수집 스킵): {e}", extra={"action": "newsWorker", "err_msg": str(e)})
+                logger.error(f"기사 처리 중 에러 발생 (수집 스킵): {e}",url= clean_url)
 
             finally:
                 # 성공하든, 중간에 어떤 사유로 튕기든 무조건 이 작업이 끝났음을 큐에 알리기.
                 task_queue.task_done()
 
-    logger.info(f"[Thread-{thread_id}] 할당된 모든 큐 소진. 브라우저 종료.", extra={"action": "newsWorker"})
+    logger.info(f"[Thread-{thread_id}] 할당된 모든 큐 소진. 브라우저 종료.")
 
 
 def runCollector(start_str=None, end_str=None):
@@ -183,7 +183,7 @@ def runCollector(start_str=None, end_str=None):
         target_day = current.strftime('%Y-%m-%d')
         batch_collected_at = datetime.now(KST).strftime('%Y-%m-%d %H:%M:%S')
 
-        logger.info(f"--- {target_day} 목록 수집 시작 ---")
+        logger.info(f"{target_day} 목록 수집 시작")
 
         all_targets = []
         for kw in TARGET_KEYWORDS:
@@ -204,7 +204,6 @@ def runCollector(start_str=None, end_str=None):
                         "raw_published": e.get('published', '')
                     })
             except Exception as e:
-                logger.warning(f"[{target_day}] RSS 피드 수집 실패 ({kw}): {e}")
                 continue
 
         logger.info(f"[{target_day}] 목록 수집 완료. 총 {len(all_targets)}건 발견.")
@@ -238,15 +237,15 @@ def runCollector(start_str=None, end_str=None):
                 t.join()
 
         # 모든 스레드 종료 후 최종 가드레일 통계 리포트 출력
-        logger.info(f"================ [{target_day}] 수집 프로세스 최종 리포트 ================")
-        logger.info(f" 총 분석 대상 기사 : {stats['total_target']} 건")
-        logger.info(f" 최종 적재 성공 : {stats['success']} 건")
-        logger.info(f" 가드레일 필터링 내역:")
-        logger.info(f" [날짜 미달] : {stats['skip_date_missing']} 건")
-        logger.info(f" [날짜 파싱 실패] : {stats['skip_date_parse_fail']} 건")
-        logger.info(f" [중복 뉴스] : {stats['skip_duplicate']} 건")
-        logger.info(f" [본문 길이 미달] : {stats['skip_short_content']} 건")
-        logger.info(f" [텍스트 유효성 탈락] : {stats['skip_invalid']} 건")
+        logger.info(f"[{target_day}] 수집 프로세스 최종 리포트")
+        logger.info(f"총 분석 대상 기사 : {stats['total_target']} 건")
+        logger.info(f"최종 적재 성공 : {stats['success']} 건")
+        logger.info(f"가드레일 필터링 내역:")
+        logger.info(f"[날짜 미달] : {stats['skip_date_missing']} 건")
+        logger.info(f"[날짜 파싱 실패] : {stats['skip_date_parse_fail']} 건")
+        logger.info(f"[중복 뉴스] : {stats['skip_duplicate']} 건")
+        logger.info(f"[본문 길이 미달] : {stats['skip_short_content']} 건")
+        logger.info(f"[텍스트 유효성 탈락] : {stats['skip_invalid']} 건")
 
         current += dt.timedelta(days=1)
 

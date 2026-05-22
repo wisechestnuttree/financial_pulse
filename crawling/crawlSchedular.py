@@ -37,6 +37,7 @@ KO_SCHEDULES = [
 ]
 
 EN_SCHEDULES = [
+    ("01:10", "미국 장 중간 흐름"),
     ("06:10", "미국 장 마감·한국 장 개장 직전"),
     ("21:00", "미국 장 개장 직전"),
 ]
@@ -59,19 +60,19 @@ def guarded(lock, job_name):
         @wraps(func)
         def wrapper():
             if lock.locked():
-                logger.warning(f"{job_name} already running. skipped.", extra={"action":"guarded"})
+                logger.warning(f"{job_name} already running. skipped.")
                 return
 
             with lock:
                 start = time.time()
-                logger.info(f"{job_name} started", extra={"action":"guarded"})
+                logger.info(f"{job_name} started")
 
                 try:
                     func()
                     elapsed = time.time() - start
-                    logger.info(f"{job_name} completed ({elapsed:.1f}s)", extra={"action":"guarded"})
+                    logger.info(f"{job_name} completed ({elapsed:.1f}s)")
                 except Exception as e:
-                    logger.exception(f"{job_name} failed: {e}", extra={"action":"guarded"})
+                    logger.exception(f"{job_name} failed: {e}")
 
         return wrapper
     return decorator
@@ -119,7 +120,7 @@ def addJobs(test_mode=False):
         scheduler.add_job(runKo, hour=h, minute=m, id=f"ko_{label}", **job_defaults)
 
     # EN 뉴스
-    for t, label in [("06:10", "장마감"), ("21:00", "개장전")]:
+    for t, label in [("01:10", "미국 장 중간 흐름"), ("06:10", "장마감"), ("21:00", "개장전")]:
         h, m = map(int, t.split(":"))
         scheduler.add_job(runEn, hour=h, minute=m, id=f"en_{label}", **job_defaults)
 
@@ -138,9 +139,9 @@ def addJobs(test_mode=False):
 
 def listener(event):
     if event.exception:
-        logger.error(f"Job crashed: {event.job_id}", extra={"action":"listener"})
+        logger.error(f"Job crashed: {event.job_id}")
     else:
-        logger.info(f"Job finished: {event.job_id}", extra={"action":"listener"})
+        logger.info(f"Job finished: {event.job_id}")
 
 
 scheduler.add_listener(

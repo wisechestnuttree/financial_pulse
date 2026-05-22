@@ -26,8 +26,7 @@ def cleanupAllDrivers():
     if not _active_drivers:
         return
 
-    logger.info(f"[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다."
-                , extra={"action" : "cleanupAllDrivers"})
+    logger.info(f"[정리] 남아있는 드라이버 {len(_active_drivers)}개를 닫습니다.")
     while _active_drivers:
         driver = _active_drivers.pop()
         try:

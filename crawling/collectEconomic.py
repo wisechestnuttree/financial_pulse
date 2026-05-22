@@ -55,7 +55,7 @@ def jsClick(driver, el, label=""):
     """
     driver.execute_script("arguments[0].click();", el)
     if label:
-        logger.info(f"클릭: {label}", extra={"action": "jsClick"})
+        logger.info(f"클릭: {label}")
     time.sleep(0.5)
 
 
@@ -87,11 +87,7 @@ def clickPage(driver, wait, page_num):
                 return True
         return False
     except Exception as e:
-        logger.error("페이지 이동 실패", extra={
-            "action" : "clickPage",
-            "page"   : page_num,
-            "err_msg": str(e),
-        })
+        logger.warning("페이지 이동 실패")
         return False
 
 
@@ -168,7 +164,7 @@ def crawlCalendar(today_str) -> list:
                 By.CSS_SELECTOR, "iframe[src*='zeroin.co.kr']"
             )))
             driver.switch_to.frame(iframe)
-            logger.info("경제캘린더 iframe 진입", extra={"action": "crawlCalendar"})
+            logger.info("경제캘린더 iframe 진입")
 
             # 국가 필터 — 영국/중국 해제
             jsClickBy(driver, wait, By.CSS_SELECTOR, ".btn_nation.open_bodPop", "국가선택 열기")
@@ -180,26 +176,15 @@ def crawlCalendar(today_str) -> list:
 
             for page in range(1, MAX_PAGE + 1):
                 if not clickPage(driver, wait, page):
-                    logger.info(f"[캘린더] {page}페이지 없음 — 순회 종료", extra={
-                        "action": "crawlCalendar", "page": page,
-                    })
+                    logger.info(f"[캘린더] {page}페이지 없음 — 순회 종료")
                     break
                 time.sleep(2)
                 page_results = extractFromPage(driver)
                 results.extend(page_results)
-                logger.info(f"[캘린더] {page}페이지 수집", extra={
-                    "action"   : "crawlCalendar",
-                    "page"     : page,
-                    "page_cnt" : len(page_results),
-                    "total_cnt": len(results),
-                })
+                logger.info(f"[캘린더] {page}페이지 수집")
 
         except Exception as e:
-            logger.error("경제캘린더 크롤링 오류", extra={
-                "action" : "crawlCalendar",
-                "date"   : today_str,
-                "err_msg": str(e),
-            })
+            logger.warning(f"경제캘린더 크롤링 오류: {e}")
             import traceback; traceback.print_exc()
 
     return results
@@ -244,18 +229,11 @@ def crawlKRCpi() -> dict | None:
                         "actual"   : actual,
                         "previous" : previous,
                     }
-                    logger.info("한국 CPI 수집 완료", extra={
-                        "action"  : "crawlKRCpi",
-                        "actual"  : actual,
-                        "previous": previous,
-                    })
+                    logger.info("한국 CPI 수집 완료")
                     break
 
         except Exception as e:
-            logger.error("한국 CPI 크롤링 오류", extra={
-                "action" : "crawlKRCpi",
-                "err_msg": str(e),
-            })
+            logger.warning("한국 CPI 크롤링 오류")
             import traceback; traceback.print_exc()
 
     return result
@@ -273,7 +251,7 @@ def saveToDB(today_str, data_list):
     처리       : REPLACE INTO — 같은 날짜+국가+지표명이면 덮어쓰기
     """
     if not data_list:
-        logger.info("저장할 데이터 없음", extra={"action": "saveToDB", "date": today_str})
+        logger.info("저장할 데이터 없음")
         return
 
     conn = getConn()
@@ -303,19 +281,11 @@ def saveToDB(today_str, data_list):
                 ))
 
         conn.commit()
-        logger.info("DB 저장 완료", extra={
-            "action": "saveToDB",
-            "date"  : today_str,
-            "count" : len(data_list),
-        })
+        logger.info("DB 저장 완료")
 
     except Exception as e:
         conn.rollback()
-        logger.error("DB 저장 오류", extra={
-            "action" : "saveToDB",
-            "date"   : today_str,
-            "err_msg": str(e),
-        })
+        logger.warning("DB 저장 오류")
     finally:
         conn.close()
 
@@ -334,19 +304,13 @@ def dailyJob():
     """
     today_str = date.today().isoformat()
 
-    logger.info("경제지표 수집 시작", extra={
-        "action": "dailyJob",
-        "date"  : today_str,
-    })
+    logger.info("경제지표 수집 시작")
 
     all_data = []
 
     cal_data = crawlCalendar(today_str)
     all_data.extend(cal_data)
-    logger.info("캘린더 수집 완료", extra={
-        "action": "dailyJob",
-        "count" : len(cal_data),
-    })
+    logger.info("캘린더 수집 완료")
 
     kr_cpi = crawlKRCpi()
     if kr_cpi:
@@ -354,11 +318,7 @@ def dailyJob():
 
     saveToDB(today_str, all_data)
 
-    logger.info("경제지표 수집 전체 완료", extra={
-        "action": "dailyJob",
-        "date"  : today_str,
-        "total" : len(all_data),
-    })
+    logger.info("경제지표 수집 전체 완료")
 
 
 if __name__ == "__main__":

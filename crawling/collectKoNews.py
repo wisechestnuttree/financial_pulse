@@ -51,7 +51,7 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
     """
     time.sleep(thread_id * 2)
     logger.info(f"[Thread-{thread_id}] 한국어 브라우저 인스턴스 초기화 및 가동 시작.")
-
+    pure_url = ""
     with managedDriver() as driver:
         while True:
             try:
@@ -59,7 +59,7 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
                 item = task_queue.get_nowait()
             except queue.Empty:
                 break
-
+            pure_url= ""
             try:
                 # 1. 발행일 검증 (가드레일 1: 날짜미달)
                 raw_pub = item.get('pub_str', '').strip()
@@ -138,7 +138,7 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
 
             except Exception as e:
                 # 개별 기사 처리 중 터진 순수 시스템 예외/통신 에러만 개별 로그로 남김
-                logger.error(f"[Thread-{thread_id}] 기사 처리 중 예외 발생 (수집 스킵): {e}")
+                logger.error(f"[Thread-{thread_id}] 기사 처리 중 예외 발생 (수집 스킵): {e}", url= pure_url)
             finally:
                 task_queue.task_done()
 
@@ -147,11 +147,11 @@ def newsWorker(task_queue, thread_id, batch_collected_at, es):
 
 def fetchList(target_date):
     all_targets = []
-    logger.info(f"--- {target_date} 목록 수집 시작 ---")
+    logger.info(f"{target_date} 목록 수집 시작")
 
     # [1] 네이버 금융
     logger.info(f"[{target_date}] 네이버 금융 목록 수집 중...")
-    for page in range(1, 6):
+    for page in range(1, 21):
         try:
             url = f"https://finance.naver.com/news/mainnews.naver?date={target_date}&page={page}"
             res = requests.get(url, headers=HEADERS, timeout=10)
@@ -205,7 +205,6 @@ def fetchList(target_date):
                         "source_type": "naver"
                     })
         except Exception as e:
-            logger.error(f"네이버 수집 에러 (Page {page}): {e}")
             break
 
     # [2] 한국경제
@@ -213,7 +212,7 @@ def fetchList(target_date):
     hk_date = target_date.replace("-", ".")
     for kw in TARGET_KEYWORDS:
 
-        for page in range(1, 6):
+        for page in range(1, 21):
             try:
                 url = (f"https://search.hankyung.com/search/news?query={kw}"
                        f"&sort=DATE%2FDESC%2CRANK%2FDESC&period=DATE&area=ALL"
@@ -234,7 +233,6 @@ def fetchList(target_date):
                             "source_type": "hankyung"
                         })
             except Exception as e:
-                logger.error(f"한경 수집 에러 ({kw}, Page {page}): {e}")
                 break
 
     logger.info(f"[{target_date}] 목록 수집 완료. 총 {len(all_targets)}건 발견.")
@@ -301,17 +299,17 @@ def runStandalone(start_date=None, end_date=None):
                 t.join()
 
         # [요청사항 반영] 하루 수집 완료 후 가드레일 통계 리포트 통합 출력
-        logger.info(f"================ [{target_day}] 한국어 수집 프로세스 최종 리포트 ================")
-        logger.info(f" 총 분석 대상 기사 : {stats['total_target']} 건")
-        logger.info(f" 최종 적재 성공 : {stats['success']} 건")
-        logger.info(f" 가드레일 필터링 내역:")
-        logger.info(f" [날짜 미달] : {stats['skip_date_missing']} 건")
-        logger.info(f" [날짜 파싱 실패] : {stats['skip_date_parse_fail']} 건")
-        logger.info(f" [중복 뉴스] : {stats['skip_duplicate']} 건")
-        logger.info(f" [본문 길이 미달] : {stats['skip_short_content']} 건")
-        logger.info(f" [텍스트 유효성 탈락] : {stats['skip_invalid']} 건")
+        logger.info(f"[{target_day}] 한국어 수집 프로세스 최종 리포트")
+        logger.info(f"총 분석 대상 기사 : {stats['total_target']} 건")
+        logger.info(f"최종 적재 성공 : {stats['success']} 건")
+        logger.info(f"가드레일 필터링 내역:")
+        logger.info(f"[날짜 미달] : {stats['skip_date_missing']} 건")
+        logger.info(f"[날짜 파싱 실패] : {stats['skip_date_parse_fail']} 건")
+        logger.info(f"[중복 뉴스] : {stats['skip_duplicate']} 건")
+        logger.info(f"[본문 길이 미달] : {stats['skip_short_content']} 건")
+        logger.info(f"[텍스트 유효성 탈락] : {stats['skip_invalid']} 건")
 
-        logger.info(f"--- {target_day} 작업 종료 ---")
+        logger.info(f"{target_day} 작업 종료")
         curr += timedelta(days=1)
         time.sleep(2)
 
