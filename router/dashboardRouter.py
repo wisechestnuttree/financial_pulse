@@ -227,10 +227,14 @@ def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
 
     pos_top = {"keyword": None, "count": 0, "ratio": 0.0}
     neg_top = {"keyword": None, "count": 0, "ratio": 0.0}
+    EXCLUDE_KEYWORDS = {"미국", "한국", "USA", "일본"}
 
     # 1단계 — 긍정 건수 1위 키워드
     for b in buckets:
         kw = b["key"]
+        if kw.strip().upper() in EXCLUDE_KEYWORDS:
+            continue
+
         counts = {"positive": 0, "negative": 0}
         for td in b.get("tendency_breakdown", {}).get("buckets", []):
             if td["key"] in counts:
@@ -247,6 +251,8 @@ def buildPosNegKeyword(res_d: dict, res_e: dict, total: int):
     pos_kw = pos_top["keyword"]
     for b in buckets:
         kw = b["key"]
+        if kw.strip().upper() in EXCLUDE_KEYWORDS:
+            continue
         if kw == pos_kw:  # 긍정 1위 키워드 제외
             continue
 
@@ -270,6 +276,7 @@ def buildHotIssues(res_b: dict, res_c: dict) -> list:
     오늘 기사량 내림차순 → 상위 6개
     """
     buckets = res_b.get("aggregations", {}).get("keywords", {}).get("buckets", [])
+    EXCLUDE_KEYWORDS = {"미국", "한국", "USA", "일본"}
 
     issues = [
         {
@@ -277,6 +284,7 @@ def buildHotIssues(res_b: dict, res_c: dict) -> list:
             "count"  : b["doc_count"],
         }
         for b in buckets
+        if b["key"].strip().upper() not in EXCLUDE_KEYWORDS
     ]
 
     issues.sort(key=lambda x: x["count"], reverse=True)

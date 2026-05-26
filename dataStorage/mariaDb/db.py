@@ -53,6 +53,12 @@ def createTables():
                     dateFail DATETIME NOT NULL,
                     CONSTRAINT fk_user_login_fail FOREIGN KEY (u_id) REFERENCES user(u_id) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                """,
+                """
+                CREATE TABLE IF NOT EXISTS retryQueue (
+                    id          INT AUTO_INCREMENT PRIMARY KEY,
+                    url         VARCHAR(2048) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
                 """
             ]
 
@@ -60,7 +66,7 @@ def createTables():
                 cursor.execute(query)
 
             conn.commit()
-            logger.error("DB: 생성 완료", extra={"action": "db"})
+            logger.info("DB: 생성 완료", extra={"action": "db"})
 
     except Exception as e:
         logger.error(f"DB: 생성 실패({e})", extra={"action": "db", "err_msg": str(e)})

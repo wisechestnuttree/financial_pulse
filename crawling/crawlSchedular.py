@@ -26,6 +26,7 @@ from apscheduler.events import EVENT_JOB_ERROR, EVENT_JOB_EXECUTED
 from crawling.collectKoNews import runStandalone
 from crawling.collectEnNews import runCollector
 from crawling.collectEconomic import dailyJob
+from crawling.utils.reCrawlUtils import runRetryCrawl
 from machineLearning.run import run
 from logs.logger import getLogger
 
@@ -44,6 +45,8 @@ EN_SCHEDULES = [
 
 ECONOMIC_SCHEDULE = ("23:30", "경제지표 수집")
 
+RECOLLECTION_NEWS = ("03:00", "누락 기사 재수집 by 관리자")
+
 logger = getLogger("system")
 
 
@@ -53,6 +56,7 @@ logger = getLogger("system")
 ko_lock = threading.Lock()
 en_lock = threading.Lock()
 eco_lock = threading.Lock()
+re_lock = threading.Lock()
 
 
 def guarded(lock, job_name):
@@ -97,6 +101,9 @@ def runEn():
 def runEco():
     dailyJob()
 
+@guarded(re_lock, "RECOLLECTION Collector")
+def runRe():
+    runRetryCrawl()
 
 # =========================
 # Scheduler
@@ -126,6 +133,9 @@ def addJobs(test_mode=False):
 
     # 경제지표
     scheduler.add_job(runEco, hour=23, minute=30, id="eco_daily", **job_defaults)
+
+    # 재크롤링
+    scheduler.add_job(runRe, hour=3, minute=00, id="reColl", **job_defaults)
 
     # 2. 실시간 테스팅 모드 (실행 시 즉시 모든 작업 테스트)
     if test_mode:

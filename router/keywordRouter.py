@@ -115,6 +115,7 @@ def buildTop7(res_a: dict, res_b: dict) -> list:
     반환     : [ { rank, keyword, count }, ... ] 최대 7개
     """
     buckets = res_a.get("aggregations", {}).get("keywords", {}).get("buckets", [])
+    EXCLUDE_KEYWORDS = {"미국", "한국", "USA", "일본"}
 
     ranked = [
         {
@@ -122,6 +123,7 @@ def buildTop7(res_a: dict, res_b: dict) -> list:
             "count"  : b["doc_count"],
         }
         for b in buckets
+        if b["key"].strip().upper() not in EXCLUDE_KEYWORDS
     ]
 
     ranked.sort(key=lambda x: x["count"], reverse=True)
@@ -177,11 +179,13 @@ def buildWeeklyTrend(res_a: dict, res_c: dict, es, news_index: str, today: str, 
     사용처      : keyword.html "주요 키워드 주간 트렌드" 라인 차트
     """
     from datetime import datetime, timedelta as td
+    EXCLUDE_KEYWORDS = {"미국", "한국", "USA", "일본"}
 
     top5_words = [
         b["key"]
-        for b in res_a.get("aggregations", {}).get("keywords", {}).get("buckets", [])[:5]
-    ]
+        for b in res_a.get("aggregations", {}).get("keywords", {}).get("buckets", [])
+        if b["key"].strip().upper() not in EXCLUDE_KEYWORDS
+    ][:5]
 
     # 7일치 날짜 리스트 생성
     start = datetime.fromisoformat(week_ago)

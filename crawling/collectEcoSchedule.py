@@ -315,7 +315,7 @@ def saveToCSV(data: list):
         writer.writeheader()
         writer.writerows(unique)
 
-    logger.info(f"CSV 저장 완료: {len(unique)}건 → {OUTPUT_CSV}", extra={"action": "saveToCSV"})
+    logger.info(f"경제 지표 저장 완료: {len(unique)}건 → {OUTPUT_CSV}", extra={"action": "saveToCSV"})
     print(f"\n✅ {OUTPUT_CSV} 저장 완료 ({len(unique)}건)")
     for item in unique:
         print(f"  {item['date']} | {item['country']:6} | {item['importance']:6} | {item['event']}")

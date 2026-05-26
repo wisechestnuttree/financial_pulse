@@ -89,11 +89,21 @@
         let warnLogs   = [];
 
         function mapLog(l, idx) {
+            // extra가 문자열 형태로 오는 경우를 방지하기 위한 안전장치
+            let extraObj = {};
+            if (l.extra) {
+                extraObj = typeof l.extra === 'string' ? JSON.parse(l.extra) : l.extra;
+            }
+
+            // 💡 루트 레벨의 url이나 extra 내부의 url을 순서대로 추출합니다.
+            const actualUrl = l.url || extraObj.url || null;
+
             return {
                 id    : l.log_id || `LOG-${String(idx + 1).padStart(5, '0')}`,
                 time  : (l.timestamp || '').replace('T', ' ').slice(0, 19),
                 level : (l.level || 'INFO').toUpperCase(),
                 detail: l.message || '',
+                url   : actualUrl // 👈 💡 URL을 가공되지 않은 상태로 보존합니다.
             };
         }
 
@@ -199,6 +209,11 @@
             else msgDiv.style.background = '#e2f0fb';
         }
 
+        function extractUrl(text) {
+            const match = String(text || '').match(/https?:\/\/[^\s"'<>]+/);
+            return match ? match[0] : null;
+        }
+
         function addTempMessage(msg) {
             const msgDiv = document.getElementById('messageArea');
             if (!msgDiv) return;
@@ -225,58 +240,47 @@
             if (retryBtn) {
                 retryBtn.addEventListener('click', async () => {
                     const selectedErrors = errorItems.filter(item => item.selected);
+
                     if (selectedErrors.length === 0) {
                         showMessage("⚠️ 재시도할 오류 항목을 선택해주세요.", "warning");
                         return;
                     }
 
+                    const logIds = selectedErrors.map(item => item.id);
+
                     retryBtn.disabled = true;
                     const originalText = retryBtn.innerText;
-                    retryBtn.innerText = "🔄 재시도 중...";
+                    retryBtn.innerText = "🔄 등록 중...";
 
-                    showMessage(`🔁 총 ${selectedErrors.length}개 오류에 대해 재시도를 시작합니다.`, "info");
+                    try {
+                        const res = await fetch(BASE_URL + "/admin/retry/register", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({ log_ids: logIds })
+                        });
 
-                    let successCount = 0;
-                    let failCount = 0;
+                        const result = await res.json();
 
-                    for (let i = 0; i < selectedErrors.length; i++) {
-                        const err = selectedErrors[i];
-                        try {
-                            const res = await fetch(BASE_URL + '/api/retry-missing', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                credentials: 'include',
-                                body: JSON.stringify({ log_id: err.id, message: err.detail })
-                            });
-                            const result = await res.json();
-                            if (res.ok && result.success) {
-                                successCount++;
-                                addTempMessage(`✅ 재시도 성공: ${err.detail.substring(0, 60)}...`);
-                                const index = errorItems.findIndex(e => e.id === err.id);
-                                if (index !== -1) errorItems.splice(index, 1);
-                            } else {
-                                throw new Error(result.message || '실패');
-                            }
-                        } catch(e) {
-                            failCount++;
-                            addTempMessage(`❌ 재시도 실패: ${err.detail.substring(0, 60)}... (${e.message})`);
-                            err.selected = false;
+                        if (!res.ok || result.success === false) {
+                            throw new Error(result.message || "재시도 등록 실패");
                         }
+
+                        errorItems = errorItems.filter(item => !item.selected);
+
+                        showMessage(
+                            `✅ 재시도 등록 완료: URL 저장 ${result.saved_cnt}건, 로그 삭제 ${result.deleted_log_cnt}건`,
+                            "success"
+                        );
+
                         renderTable();
+
+                    } catch (e) {
+                        showMessage(`❌ 재시도 등록 실패: ${e.message}`, "error");
+                    } finally {
+                        retryBtn.disabled = false;
+                        retryBtn.innerText = originalText;
                     }
-
-                    retryBtn.disabled = false;
-                    retryBtn.innerText = originalText;
-
-                    const finalMsg = `✅ 재시도 완료: 성공 ${successCount}건, 실패 ${failCount}건. ${successCount > 0 ? '성공한 로그는 목록에서 제거되었습니다.' : ''}`;
-                    showMessage(finalMsg, successCount > 0 ? "success" : "error");
-
-                    if (failCount === 0 && errorItems.length === 0) {
-                        showMessage("🎉 모든 오류가 해결되었습니다! 크롤링 정상화 상태입니다.", "success");
-                    } else if (failCount > 0) {
-                        showMessage(`⚠️ ${failCount}개 항목은 재시도에 실패했습니다. 네트워크/타겟 상태 확인 후 다시 시도하세요.`, "warning");
-                    }
-                    renderTable();
                 });
             } else {
                 console.warn('retryBtn 요소를 찾을 수 없음');

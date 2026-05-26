@@ -30,3 +30,6 @@ class RetrySelectedRequest(BaseModel):
     urls:     List[str]
     batch_id: str
     lang:     str = "ko"
+
+class RetryRegister(BaseModel):
+    log_ids: List[str]
